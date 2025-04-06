@@ -18,8 +18,9 @@ app = FastAPI(
     title="AccounTable API",
     description="API for the AccounTable accountability partner application",
     version="1.0.0",
-    docs_url=None,  # Disable default docs to use custom docs
-    redoc_url=None,  # Disable default redoc to use custom docs
+    # Use default docs instead of custom docs which had issues
+    # docs_url=None,
+    # redoc_url=None,
 )
 
 # Add middleware
@@ -46,41 +47,8 @@ async def health_check():
     """
     return {"status": "healthy"}
 
-# Custom API documentation endpoints
-@app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html():
-    """
-    Custom Swagger UI route to provide API documentation
-    """
-    return get_swagger_ui_html(
-        openapi_url="/openapi.json",
-        title="AccounTable API - Documentation",
-        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@4/swagger-ui-bundle.js",
-        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@4/swagger-ui.css",
-    )
-
-@app.get("/redoc", include_in_schema=False)
-async def redoc_html():
-    """
-    ReDoc UI route to provide alternative API documentation
-    """
-    return get_redoc_html(
-        openapi_url="/openapi.json",
-        title="AccounTable API - ReDoc",
-        redoc_js_url="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js",
-    )
-
-@app.get("/openapi.json", include_in_schema=False)
-async def get_open_api_endpoint():
-    """
-    Route to serve the OpenAPI schema
-    """
-    return get_openapi(
-        title="AccounTable API",
-        version="1.0.0",
-        description="API for the AccounTable accountability partner application",
-        routes=app.routes,
-    )
+# Let's revert to using the built-in Swagger docs instead of custom ones
+# which were causing problems with the OpenAPI schema
 
 # Include API router with prefix
 app.include_router(api_router, prefix="/api")
