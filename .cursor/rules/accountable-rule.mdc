@@ -1,0 +1,146 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Prompt for Building a React, Python, Supabase Accountability Partner Web App
+
+## Project Overview
+Create a web application that connects two users as accountability partners to help them achieve their goals through effective mutual accountability. The application should be built using React for the frontend, Python for the backend/API, and Supabase for authentication and data storage.
+
+## Core Principles of Effective Accountability Partnerships
+
+Based on research, effective accountability partnerships include these key elements:
+
+1. **Clear Goal Setting** - Partners need to clearly communicate what they intend to achieve. They should share goals and action plans with specific steps they want to be accountable for.
+
+2. **Regular Check-ins** - Scheduling fixed, regular appointments is crucial. These should be treated as unmissable commitments that are planned and added to calendars.
+
+3. **Focused Approach** - Partners should focus on one specific habit or goal at a time rather than trying to track multiple initiatives simultaneously.
+
+4. **Positive Reinforcement** - Being supportive (79.6%), giving positive reinforcement (77.8%), and remaining nonjudgmental (66.5%) are among the most important qualities for accountability partners.
+
+5. **Clear Communication** - Partners should "communicate clearly, directly, honestly, and respectfully" with regular, genuine exchanges to maintain targeted accountability.
+
+6. **Mutual Commitment** - Both partners must be equally committed to the process, as having one partner who is less invested typically leads to the partnership failing.
+
+7. **Trial Period** - Partners should "agree up front that you are both in a trial period for the partnership and that either person can withdraw after the third meeting with no hard feelings."
+
+## Key Features
+
+### User Authentication & Profile
+- Secure registration and login using Supabase Auth
+- User profiles with personal information, goals, and preferences
+- Option to set notification preferences
+
+### Partnership Formation
+- Guided partner selection process based on compatible goals
+- Partnership agreement functionality (terms, expectations, commitments)
+- Trial period tracking with opt-out options
+
+### Goal Setting & Tracking
+- Structured goal creation with SMART criteria
+- Focus on setting one primary goal at a time
+- Progress tracking with visual indicators
+- Daily/weekly habit tracking capabilities
+
+### Communication System
+- Scheduled check-in reminders
+- In-app messaging/chat
+- Video call integration option
+- Templates for constructive feedback
+
+### Accountability Features
+- Check-in logs and history
+- Missed check-in notifications
+- Progress reports and visualizations
+- Celebration of milestones and achievements
+
+### Feedback System
+- Guided feedback templates that promote positivity
+- Simple reaction options (supportive, questioning, concerned)
+- Partnership health monitoring
+
+## Technical Requirements
+
+### Frontend (React)
+- Responsive design for mobile and desktop
+- Clean, intuitive UI with dashboard focused on current goals
+- Real-time updates for messages and progress
+- Progressive Web App capabilities for mobile usage
+
+### Backend (Python)
+- RESTful API built with FastAPI or Flask
+- Scheduled task handling for reminders and check-ins
+- Data processing for goal tracking and analytics
+- Integration with Supabase for data persistence
+
+### Database (Supabase)
+- User authentication and management
+- Real-time database for messages and updates
+- Secure data storage for user goals and progress
+- Row-level security policies for privacy
+
+### Deployment
+- Containerized application with Docker
+- CI/CD pipeline for automated testing and deployment
+- Scalable infrastructure (optional AWS/GCP integration)
+
+## User Experience Flow
+
+1. **Onboarding**
+   - Register account
+   - Create profile
+   - Define initial goal
+   - Set accountability preferences
+
+2. **Partner Matching**
+   - Select or be matched with a partner
+   - Review partner's goal and commitment
+   - Establish partnership agreement
+   - Set check-in schedule
+
+3. **Daily/Weekly Usage**
+   - Log progress toward goals
+   - Complete scheduled check-ins
+   - Provide supportive feedback
+   - Adjust goals as needed
+
+4. **Progress Evaluation**
+   - Review partnership effectiveness
+   - Celebrate milestones
+   - Adjust accountability approach if needed
+   - Set new goals upon completion
+
+## Key Implementation Considerations
+
+1. **Privacy & Security**
+   - Implement proper data protection
+   - Allow users to control what information is shared
+   - Create clear boundaries for partnership communications
+
+2. **Psychological Safety**
+   - Design features that promote support rather than judgment
+   - Include guidance on constructive feedback
+   - Provide templates for positive communication
+
+3. **Engagement & Retention**
+   - Implement gamification elements to maintain motivation
+   - Send timely, relevant notifications
+   - Create rewards for consistent participation
+
+4. **Adaptability**
+   - Allow partnerships to evolve with changing needs
+   - Support different types of goals and accountability styles
+   - Provide options for partnership dissolution and formation
+
+## Additional Notes
+
+- When selecting an accountability partner, focus on finding someone "who is as committed as you are, has similar values, can be available when you are available, and is genuinely interested in helping you succeed."
+
+- Remember that "accountability is the secret sauce to get dreamers and planners to actual achievers" and should be designed to help users move from intention to action.
+
+- Consider implementation of public goal posting, as "you are more likely to stay accountable to your goals if you know that someone else is monitoring your progress."
+
+- The system should help partners provide "a positive perspective" when facing obstacles and "celebrate wins while providing consistent encouragement."
+
