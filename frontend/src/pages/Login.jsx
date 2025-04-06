@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/use-toast';
@@ -31,11 +31,17 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      await signIn(email, password);
+      const { error } = await signIn(email, password);
+      
+      if (error) {
+        throw error;
+      }
+      
       toast({
         title: "Success",
         description: "You have successfully logged in",
       });
+      
       navigate(from, { replace: true });
     } catch (error) {
       console.error('Login error:', error);
@@ -54,9 +60,9 @@ const Login = () => {
       <div className="w-full max-w-md p-4">
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">Sign In</CardTitle>
             <CardDescription className="text-center">
-              Enter your email and password to sign in
+              Enter your credentials to access your account
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
@@ -66,16 +72,19 @@ const Login = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
                   required
                 />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+                  <Link 
+                    to="/forgot-password" 
+                    className="text-sm text-primary hover:underline"
+                  >
                     Forgot password?
                   </Link>
                 </div>
@@ -84,6 +93,7 @@ const Login = () => {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
                   required
                 />
               </div>

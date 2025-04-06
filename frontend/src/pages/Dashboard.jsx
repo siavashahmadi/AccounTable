@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../services/supabase';
+import { db, supabase } from '../services/supabase';
 import { useToast } from '../hooks/use-toast';
 import { Button } from '../components/ui/button';
 import { 
@@ -12,39 +12,105 @@ import {
   CardHeader, 
   CardTitle 
 } from '../components/ui/card';
-import { Target, Users, Calendar } from 'lucide-react';
+import { Target, Users, Calendar, AlertTriangle } from 'lucide-react';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, ensureUserRecord } = useAuth();
   const [partnerships, setPartnerships] = useState([]);
   const [goals, setGoals] = useState([]);
   const [checkins, setCheckins] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userProfileExists, setUserProfileExists] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
+    const checkUserProfile = async () => {
+      if (!user) return;
+
+      try {
+        // Check if the user record exists in the users table
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (error) {
+          // If error is "No rows found", user profile doesn't exist
+          if (error.code === 'PGRST116') {
+            setUserProfileExists(false);
+            
+            // Create user profile
+            const profile = await ensureUserRecord(user);
+            if (profile) {
+              setUserProfileExists(true);
+              // Wait a moment for database to update
+              setTimeout(() => {
+                fetchDashboardData();
+              }, 1000);
+            }
+          } else {
+            console.error('Error checking user profile:', error);
+            toast({
+              variant: "destructive",
+              title: "Error checking profile",
+              description: "There was an issue with your user profile. Please try again later.",
+            });
+          }
+        } else {
+          setUserProfileExists(true);
+        }
+      } catch (err) {
+        console.error('Error in checkUserProfile:', err);
+      }
+    };
+
     const fetchDashboardData = async () => {
       if (!user) return;
 
       setLoading(true);
       try {
-        // Fetch partnerships
-        const { data: partnershipsData, error: partnershipsError } = await db.getPartnerships(user.id);
-        if (partnershipsError) throw partnershipsError;
-        setPartnerships(partnershipsData || []);
+        // Check user profile first
+        await checkUserProfile();
 
-        // Fetch goals
-        const { data: goalsData, error: goalsError } = await db.getGoals(user.id);
-        if (goalsError) throw goalsError;
-        setGoals(goalsData || []);
+        // Only fetch data if user profile exists
+        if (userProfileExists) {
+          // Fetch partnerships with proper error handling
+          try {
+            const { data: partnershipsData, error: partnershipsError } = await db.getPartnerships(user.id);
+            if (partnershipsError) {
+              console.error('Error fetching partnerships:', partnershipsError);
+              // Continue with other data fetching
+            } else {
+              setPartnerships(partnershipsData || []);
 
-        // If there is an active partnership, fetch check-ins
-        if (partnershipsData && partnershipsData.length > 0) {
-          const activePartnership = partnershipsData.find(p => p.status === 'active');
-          if (activePartnership) {
-            const { data: checkinsData, error: checkinsError } = await db.getUpcomingCheckins(activePartnership.id);
-            if (checkinsError) throw checkinsError;
-            setCheckins(checkinsData || []);
+              // If there is an active partnership, fetch check-ins
+              if (partnershipsData && partnershipsData.length > 0) {
+                const activePartnership = partnershipsData.find(p => p.status === 'active');
+                if (activePartnership) {
+                  try {
+                    const { data: checkinsData, error: checkinsError } = await db.getUpcomingCheckins(activePartnership.id);
+                    if (!checkinsError) {
+                      setCheckins(checkinsData || []);
+                    }
+                  } catch (checkinErr) {
+                    console.error('Error fetching check-ins:', checkinErr);
+                  }
+                }
+              }
+            }
+          } catch (partnershipErr) {
+            console.error('Error in partnership fetch:', partnershipErr);
+          }
+
+          // Fetch goals with proper error handling
+          try {
+            const { data: goalsData, error: goalsError } = await db.getGoals(user.id);
+            if (!goalsError) {
+              setGoals(goalsData || []);
+            }
+          } catch (goalErr) {
+            console.error('Error fetching goals:', goalErr);
           }
         }
       } catch (error) {
@@ -52,7 +118,7 @@ const Dashboard = () => {
         toast({
           variant: "destructive",
           title: "Error loading dashboard",
-          description: error.message || "Failed to load your dashboard data",
+          description: "Some dashboard data couldn't be loaded. Please refresh to try again.",
         });
       } finally {
         setLoading(false);
@@ -60,7 +126,7 @@ const Dashboard = () => {
     };
 
     fetchDashboardData();
-  }, [user, toast]);
+  }, [user, toast, ensureUserRecord, userProfileExists]);
 
   if (loading) {
     return (
@@ -70,26 +136,56 @@ const Dashboard = () => {
     );
   }
 
+  // Show message if user profile doesn't exist
+  if (!userProfileExists) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-6">
+            <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Setting Up Your Profile</h2>
+            <p className="text-center mb-4">
+              We're setting up your user profile. This may take a moment.
+            </p>
+            <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const activePartnership = partnerships.find(p => p.status === 'active');
   const activeGoal = goals.find(g => g.status === 'active');
 
-  // Helper function to get partner's name
+  // Helper function to get partner's name with safety check
   const getPartnerName = (partnership) => {
     if (!partnership) return '';
-    const isUserOne = partnership.user_one.id === user?.id;
-    const partner = isUserOne ? partnership.user_two : partnership.user_one;
-    return `${partner.first_name} ${partner.last_name}`;
+    try {
+      const isUserOne = partnership.user_one.id === user?.id;
+      const partner = isUserOne ? partnership.user_two : partnership.user_one;
+      return partner ? `${partner.first_name || ''} ${partner.last_name || ''}`.trim() : 'Partner';
+    } catch (e) {
+      console.error('Error getting partner name:', e);
+      return 'Partner';
+    }
   };
 
-  // Format date for readability
+  // Format date for readability with error handling
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+    try {
+      if (!dateString) return 'Not set';
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return 'Invalid date';
+    }
   };
 
   return (
@@ -125,7 +221,7 @@ const Dashboard = () => {
                 <Button variant="outline">View Partnership</Button>
               </Link>
             ) : (
-              <Link to="/partnerships/new">
+              <Link to="/partnerships">
                 <Button>Find a Partner</Button>
               </Link>
             )}
@@ -158,7 +254,7 @@ const Dashboard = () => {
                 <Button variant="outline">View Goal</Button>
               </Link>
             ) : (
-              <Link to="/goals/new">
+              <Link to="/goals">
                 <Button>Create Goal</Button>
               </Link>
             )}
@@ -234,7 +330,7 @@ const Dashboard = () => {
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {goal.description ? goal.description.substring(0, 100) + '...' : 'No description'}
+                          {goal.description ? goal.description.substring(0, 100) + (goal.description.length > 100 ? '...' : '') : 'No description'}
                         </p>
                       </li>
                     ))}
@@ -248,23 +344,23 @@ const Dashboard = () => {
                   <h3 className="text-lg font-semibold mb-2">Partnership History</h3>
                   <ul className="space-y-2">
                     {partnerships.map(partnership => (
-                      <li key={partnership.id} className="border-b pb-2">
+                      <li key={partnership.id} className="border-b pb-2 last:border-b-0">
                         <div className="flex justify-between">
-                          <span className="font-medium">
-                            Partner: {getPartnerName(partnership)}
-                          </span>
+                          <span className="font-medium">Partnership with {getPartnerName(partnership)}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             partnership.status === 'active' 
-                              ? 'bg-primary/10 text-primary' 
-                              : partnership.status === 'ended'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-muted text-muted-foreground'
+                              ? 'bg-green-100 text-green-700'
+                              : partnership.status === 'trial'
+                                ? 'bg-blue-100 text-blue-700'
+                                : partnership.status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-muted text-muted-foreground'
                           }`}>
                             {partnership.status}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Since {formatDate(partnership.created_at)}
+                          Created: {formatDate(partnership.created_at)}
                         </p>
                       </li>
                     ))}
@@ -273,13 +369,16 @@ const Dashboard = () => {
               )}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <p className="text-lg text-muted-foreground mb-4">
-                You haven't started your accountability journey yet
-              </p>
-              <Link to="/partnerships/new">
-                <Button>Get Started</Button>
-              </Link>
+            <div className="text-center py-6">
+              <p className="text-muted-foreground">No activity yet. Start by finding a partner or creating a goal!</p>
+              <div className="flex justify-center gap-4 mt-4">
+                <Link to="/partnerships">
+                  <Button variant="outline">Find a Partner</Button>
+                </Link>
+                <Link to="/goals">
+                  <Button variant="outline">Create a Goal</Button>
+                </Link>
+              </div>
             </div>
           )}
         </CardContent>

@@ -1,5 +1,6 @@
+import React from 'react';
 import { createContext, useContext, useState, useEffect } from 'react';
-import { auth as supabaseAuth } from '../services/supabase';
+import { supabase, getCurrentUser, createUserProfile } from '../lib/supabase';
 
 // Create the Auth Context
 const AuthContext = createContext();
@@ -25,14 +26,21 @@ export const AuthProvider = ({ children }) => {
     const initializeAuth = async () => {
       try {
         // Get the current session
-        const { session: currentSession, error: sessionError } = await supabaseAuth.getSession();
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           throw sessionError;
         }
 
         setSession(currentSession);
-        setUser(currentSession?.user || null);
+        
+        if (currentSession?.user) {
+          // Get user and profile data
+          const fullUser = await getCurrentUser();
+          setUser(fullUser);
+        } else {
+          setUser(null);
+        }
       } catch (err) {
         console.error('Error initializing auth:', err);
         setError(err);
@@ -44,16 +52,27 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
 
     // Set up auth state listener
-    const { data: authListener } = supabaseAuth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session);
-      setSession(session);
-      setUser(session?.user || null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      setSession(currentSession);
+      
+      if (currentSession?.user) {
+        // For sign_up and signed_in events, ensure the user record exists
+        if (event === 'SIGNED_IN' || event === 'SIGNED_UP') {
+          const fullUser = await getCurrentUser();
+          setUser(fullUser);
+        } else {
+          setUser(currentSession.user);
+        }
+      } else {
+        setUser(null);
+      }
+      
       setLoading(false);
     });
 
     // Clean up the listener when the component unmounts
     return () => {
-      authListener?.subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
@@ -63,59 +82,76 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      const { data, error } = await supabaseAuth.signUp({ 
-        email, 
-        password, 
-        ...userData 
+      // Register with Supabase Auth
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userData,
+        },
       });
       
-      if (error) throw error;
+      if (signUpError) throw signUpError;
+      
+      if (!data?.user) {
+        throw new Error('Registration failed - no user was created');
+      }
+      
+      // Create user profile (this is a failsafe - the trigger should handle this,
+      // but we'll do it manually as well to ensure it exists)
+      await createUserProfile({
+        ...data.user,
+        email,
+        user_metadata: userData
+      });
+      
       return data;
     } catch (err) {
-      console.error('Error signing up:', err);
+      console.error('Error in signUp:', err);
       setError(err);
       throw err;
     } finally {
       setLoading(false);
     }
   };
-
+  
   // Sign in function
   const signIn = async (email, password) => {
     setLoading(true);
     setError(null);
     
     try {
-      const { data, error } = await supabaseAuth.signIn({ email, password });
-      if (error) throw error;
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (signInError) throw signInError;
+      
       return data;
     } catch (err) {
-      console.error('Error signing in:', err);
+      console.error('Error in signIn:', err);
       setError(err);
       throw err;
     } finally {
       setLoading(false);
     }
   };
-
+  
   // Sign out function
   const signOut = async () => {
-    setLoading(true);
     setError(null);
     
     try {
-      const { error } = await supabaseAuth.signOut();
-      if (error) throw error;
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
     } catch (err) {
-      console.error('Error signing out:', err);
+      console.error('Error in signOut:', err);
       setError(err);
       throw err;
-    } finally {
-      setLoading(false);
     }
   };
-
-  // Define the value object to be provided to consumers
+  
   const value = {
     user,
     session,
@@ -124,7 +160,12 @@ export const AuthProvider = ({ children }) => {
     signUp,
     signIn,
     signOut,
+    getCurrentUser,
   };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }; 

@@ -1,3 +1,4 @@
+import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './contexts/AuthContext'
@@ -10,6 +11,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Partnerships from './pages/Partnerships'
 import Goals from './pages/Goals'
+import GoalDetails from './pages/GoalDetails'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
@@ -23,7 +25,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Home />} />
@@ -34,7 +36,9 @@ function App() {
             <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/partnerships" element={<Partnerships />} />
+              <Route path="/partnerships/:id" element={<Partnerships />} />
               <Route path="/goals" element={<Goals />} />
+              <Route path="/goals/:id" element={<GoalDetails />} />
             </Route>
           </Routes>
         </Router>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/use-toast';
@@ -87,16 +87,22 @@ const Register = () => {
     setIsLoading(true);
     
     try {
+      // Prepare user metadata for Supabase Auth
       const userData = {
         first_name: formData.firstName,
         last_name: formData.lastName,
       };
       
-      await signUp(formData.email, formData.password, userData);
+      // Register with Supabase Auth
+      const { data, error } = await signUp(formData.email, formData.password, userData);
+      
+      if (error) {
+        throw error;
+      }
       
       toast({
         title: "Registration successful",
-        description: "Your account has been created. Please check your email for verification.",
+        description: "Your account has been created. You can now sign in.",
       });
       
       navigate('/login');
