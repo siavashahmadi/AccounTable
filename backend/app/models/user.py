@@ -14,6 +14,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     avatar_url: Optional[str] = None
+    invitation_token: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
