@@ -87,34 +87,63 @@ const Register = () => {
     setIsLoading(true);
     
     try {
-      // Prepare user metadata for Supabase Auth
+      // Prepare user data for registration
       const userData = {
+        email: formData.email,
+        password: formData.password,
         first_name: formData.firstName,
         last_name: formData.lastName,
       };
       
-      // Register with Supabase Auth
-      const { data, error } = await signUp(formData.email, formData.password, userData);
+      // Call Supabase Auth signup
+      const { data, error } = await signUp(userData);
       
-      if (error) {
-        throw error;
+      if (error) throw error;
+      
+      if (!data) {
+        throw new Error('No response from registration service');
       }
       
+      // Handle email confirmation case
+      if (data.emailConfirmationRequired) {
+        toast({
+          title: "Check your email",
+          description: "We've sent you a confirmation link. Please check your email to complete registration.",
+          duration: 6000,
+        });
+        // Navigate to login page after a short delay
+        setTimeout(() => {
+          setIsLoading(false);
+          navigate('/login');
+        }, 2000);
+        return;
+      }
+      
+      // Handle immediate success case (no email confirmation required)
       toast({
-        title: "Registration successful",
-        description: "Your account has been created. You can now sign in.",
+        title: "Account created",
+        description: "Your account has been created successfully.",
+        duration: 3000,
       });
       
-      navigate('/login');
+      // Navigate to dashboard or login based on session presence
+      setTimeout(() => {
+        setIsLoading(false);
+        if (data.session) {
+          navigate('/dashboard');
+        } else {
+          navigate('/login');
+        }
+      }, 2000);
+      
     } catch (error) {
-      console.error('Registration error:', error);
+      setIsLoading(false);
       toast({
         variant: "destructive",
         title: "Registration failed",
-        description: error.message || "There was a problem with your registration",
+        description: error.message || "Registration failed. Please try again.",
+        duration: 4000,
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 

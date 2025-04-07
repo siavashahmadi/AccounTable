@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { db, supabase } from '../services/supabase';
 import { useToast } from '../hooks/use-toast';
 import { Button } from '../components/ui/button';
 import { 
@@ -13,56 +12,29 @@ import {
   CardTitle 
 } from '../components/ui/card';
 import { Target, Users, Calendar, AlertTriangle } from 'lucide-react';
+import { db } from '../lib/supabase';
 
 const Dashboard = () => {
-  const { user, ensureUserRecord } = useAuth();
+  const { user, getCurrentUser } = useAuth();
   const [partnerships, setPartnerships] = useState([]);
   const [goals, setGoals] = useState([]);
   const [checkins, setCheckins] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userProfileExists, setUserProfileExists] = useState(true);
+  const [userProfileComplete, setUserProfileComplete] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     const checkUserProfile = async () => {
       if (!user) return;
-
-      try {
-        // Check if the user record exists in the users table
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (error) {
-          // If error is "No rows found", user profile doesn't exist
-          if (error.code === 'PGRST116') {
-            setUserProfileExists(false);
-            
-            // Create user profile
-            const profile = await ensureUserRecord(user);
-            if (profile) {
-              setUserProfileExists(true);
-              // Wait a moment for database to update
-              setTimeout(() => {
-                fetchDashboardData();
-              }, 1000);
-            }
-          } else {
-            console.error('Error checking user profile:', error);
-            toast({
-              variant: "destructive",
-              title: "Error checking profile",
-              description: "There was an issue with your user profile. Please try again later.",
-            });
-          }
-        } else {
-          setUserProfileExists(true);
-        }
-      } catch (err) {
-        console.error('Error in checkUserProfile:', err);
+      
+      // If user exists but doesn't have first_name or last_name set, 
+      // consider profile incomplete
+      if (!user.first_name || !user.last_name) {
+        setUserProfileComplete(false);
+        return;
       }
+      
+      setUserProfileComplete(true);
     };
 
     const fetchDashboardData = async () => {
@@ -70,47 +42,41 @@ const Dashboard = () => {
 
       setLoading(true);
       try {
-        // Check user profile first
+        // Check if user profile is complete
         await checkUserProfile();
 
-        // Only fetch data if user profile exists
-        if (userProfileExists) {
-          // Fetch partnerships with proper error handling
+        // Only fetch data if we have a user with profile
+        if (user && userProfileComplete) {
+          // Fetch partnerships
           try {
-            const { data: partnershipsData, error: partnershipsError } = await db.getPartnerships(user.id);
-            if (partnershipsError) {
-              console.error('Error fetching partnerships:', partnershipsError);
-              // Continue with other data fetching
-            } else {
-              setPartnerships(partnershipsData || []);
+            const { data: partnershipsData } = await db.getPartnerships();
+            setPartnerships(partnershipsData || []);
 
-              // If there is an active partnership, fetch check-ins
-              if (partnershipsData && partnershipsData.length > 0) {
-                const activePartnership = partnershipsData.find(p => p.status === 'active');
-                if (activePartnership) {
-                  try {
-                    const { data: checkinsData, error: checkinsError } = await db.getUpcomingCheckins(activePartnership.id);
-                    if (!checkinsError) {
-                      setCheckins(checkinsData || []);
-                    }
-                  } catch (checkinErr) {
-                    console.error('Error fetching check-ins:', checkinErr);
-                  }
+            // If there is an active partnership, fetch related data
+            if (partnershipsData && partnershipsData.length > 0) {
+              const activePartnership = partnershipsData.find(p => p.status === 'active');
+              
+              if (activePartnership) {
+                // Fetch goals for this partnership
+                try {
+                  const { data: goalsData } = await db.getGoals();
+                  setGoals(goalsData || []);
+                } catch (goalErr) {
+                  console.error('Error fetching goals:', goalErr);
                 }
+                
+                // For check-ins we can use the same data fetch since the dashboard 
+                // should only show check-ins for active partnerships
+                // We'll leave this for a separate implementation if needed
               }
             }
           } catch (partnershipErr) {
             console.error('Error in partnership fetch:', partnershipErr);
-          }
-
-          // Fetch goals with proper error handling
-          try {
-            const { data: goalsData, error: goalsError } = await db.getGoals(user.id);
-            if (!goalsError) {
-              setGoals(goalsData || []);
-            }
-          } catch (goalErr) {
-            console.error('Error fetching goals:', goalErr);
+            toast({
+              variant: "destructive",
+              title: "Error loading partnerships",
+              description: "Your partnerships couldn't be loaded. Please try again.",
+            });
           }
         }
       } catch (error) {
@@ -126,7 +92,32 @@ const Dashboard = () => {
     };
 
     fetchDashboardData();
-  }, [user, toast, ensureUserRecord, userProfileExists]);
+  }, [user, toast, userProfileComplete]);
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      // Try to get the full user again, which should create the profile if needed
+      const { data: refreshedUser } = await getCurrentUser();
+      if (refreshedUser) {
+        // Re-render component with the refreshed user info
+        toast({
+          title: "Profile updated",
+          description: "Your profile has been refreshed.",
+        });
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
+      toast({
+        variant: "destructive",
+        title: "Error refreshing profile",
+        description: "There was a problem refreshing your profile.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -136,19 +127,19 @@ const Dashboard = () => {
     );
   }
 
-  // Show message if user profile doesn't exist
-  if (!userProfileExists) {
+  // Show message if user profile isn't complete
+  if (!userProfileComplete) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-6">
             <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Setting Up Your Profile</h2>
+            <h2 className="text-xl font-semibold mb-2">Complete Your Profile</h2>
             <p className="text-center mb-4">
-              We're setting up your user profile. This may take a moment.
+              Please set up your profile information to use the dashboard.
             </p>
-            <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+            <Button onClick={handleRefresh}>Refresh Profile</Button>
           </CardContent>
         </Card>
       </div>
@@ -162,8 +153,8 @@ const Dashboard = () => {
   const getPartnerName = (partnership) => {
     if (!partnership) return '';
     try {
-      const isUserOne = partnership.user_one.id === user?.id;
-      const partner = isUserOne ? partnership.user_two : partnership.user_one;
+      const isUserOne = partnership.user1.id === user?.id;
+      const partner = isUserOne ? partnership.user2 : partnership.user1;
       return partner ? `${partner.first_name || ''} ${partner.last_name || ''}`.trim() : 'Partner';
     } catch (e) {
       console.error('Error getting partner name:', e);
@@ -276,7 +267,7 @@ const Dashboard = () => {
                   <div key={checkin.id} className="flex justify-between">
                     <p className="text-sm">{formatDate(checkin.scheduled_at)}</p>
                     <p className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                      Upcoming
+                      {checkin.status || "Scheduled"}
                     </p>
                   </div>
                 ))}
@@ -350,10 +341,10 @@ const Dashboard = () => {
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             partnership.status === 'active' 
                               ? 'bg-green-100 text-green-700'
-                              : partnership.status === 'trial'
-                                ? 'bg-blue-100 text-blue-700'
-                                : partnership.status === 'pending'
-                                  ? 'bg-yellow-100 text-yellow-700'
+                              : partnership.status === 'pending'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : partnership.status === 'paused'
+                                  ? 'bg-orange-100 text-orange-700' 
                                   : 'bg-muted text-muted-foreground'
                           }`}>
                             {partnership.status}

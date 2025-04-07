@@ -13,6 +13,7 @@ import {
   CardHeader, 
   CardTitle 
 } from '../components/ui/card';
+import { supabase } from '../lib/supabase';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -31,24 +32,60 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
+      // Attempt to sign in
+      const { data, error } = await signIn({
+        email,
+        password
+      });
       
-      if (error) {
+      if (error && error.message.includes('timed out')) {
+        // Let's check if we're authenticated anyway before giving up
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          toast({
+            title: "Success",
+            description: "You have successfully logged in",
+          });
+          
+          navigate(from, { replace: true });
+          return;
+        }
+        
+        // If we get here, the user really isn't logged in
+        throw error;
+      } else if (error) {
         throw error;
       }
       
-      toast({
-        title: "Success",
-        description: "You have successfully logged in",
-      });
+      if (!data) {
+        throw new Error('Sign in failed - no response data');
+      }
       
-      navigate(from, { replace: true });
+      // If we have a session or authenticated user, consider it a success even if profile is minimal
+      if (data.session || data.user) {
+        toast({
+          title: "Success",
+          description: "You have successfully logged in",
+        });
+        
+        navigate(from, { replace: true });
+      } else {
+        throw new Error('Sign in failed - no session created');
+      }
     } catch (error) {
-      console.error('Login error:', error);
+      // Create a user-friendly error message
+      let errorMessage = "Invalid email or password. Please try again.";
+      
+      if (error.message?.includes("confirmation")) {
+        errorMessage = "Please confirm your email before signing in.";
+      } else if (error.message?.includes("timed out")) {
+        errorMessage = "Login timed out. Please try again or check your internet connection.";
+      }
+      
       toast({
         variant: "destructive",
         title: "Login failed",
-        description: error.message || "Invalid email or password",
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, getCurrentUser, createUserProfile } from '../lib/supabase';
+import { supabase, db, auth } from '../lib/supabase';
 
 // Create the Auth Context
 const AuthContext = createContext();
@@ -19,136 +19,138 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  // Initialize the auth state on component mount
+  // Initialize auth state and listen for changes
   useEffect(() => {
+    // Get initial session
     const initializeAuth = async () => {
+      // Set a timeout to ensure the loading state gets reset
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+      }, 5000);
+      
       try {
-        // Get the current session
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          throw sessionError;
-        }
-
+        const { session: currentSession } = await auth.getSession();
         setSession(currentSession);
         
         if (currentSession?.user) {
-          // Get user and profile data
-          const fullUser = await getCurrentUser();
-          setUser(fullUser);
-        } else {
-          setUser(null);
+          const { data: profile, error } = await db.getCurrentUser();
+          if (!error && profile) {
+            setUser(profile);
+          }
         }
-      } catch (err) {
-        console.error('Error initializing auth:', err);
-        setError(err);
+      } catch (error) {
+        // Handle initialization errors silently
       } finally {
+        clearTimeout(timeoutId); // Clear the timeout since we're done
         setLoading(false);
       }
     };
 
     initializeAuth();
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      setSession(currentSession);
-      
-      if (currentSession?.user) {
-        // For sign_up and signed_in events, ensure the user record exists
-        if (event === 'SIGNED_IN' || event === 'SIGNED_UP') {
-          const fullUser = await getCurrentUser();
-          setUser(fullUser);
-        } else {
-          setUser(currentSession.user);
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, currentSession) => {
+        // Set a timeout to ensure the loading state gets reset
+        const timeoutId = setTimeout(() => {
+          setLoading(false);
+        }, 5000);
+        
+        try {
+          setSession(currentSession);
+          
+          if (currentSession?.user) {
+            // Create a minimal profile early as a fallback
+            const minimalProfile = {
+              id: currentSession.user.id,
+              email: currentSession.user.email,
+              first_name: currentSession.user.user_metadata?.first_name || '',
+              last_name: currentSession.user.user_metadata?.last_name || '',
+              is_minimal_profile: true
+            };
+            
+            // Set minimal profile right away so we have something
+            setUser(minimalProfile);
+            
+            // Try to get a full profile
+            const { data: profile, error } = await db.getCurrentUser();
+            
+            if (!error && profile) {
+              // Only update if we got an actual profile
+              setUser(profile);
+            }
+          } else {
+            setUser(null);
+          }
+        } catch (error) {
+          // Handle auth state change errors silently
+          // Keep minimal profile if we set it, otherwise clear user
+          if (!user && currentSession?.user) {
+            const minimalProfile = {
+              id: currentSession.user.id,
+              email: currentSession.user.email,
+              first_name: currentSession.user.user_metadata?.first_name || '',
+              last_name: currentSession.user.user_metadata?.last_name || '',
+              is_minimal_profile: true
+            };
+            setUser(minimalProfile);
+          } else if (!currentSession) {
+            setUser(null);
+          }
+        } finally {
+          clearTimeout(timeoutId); // Clear the timeout since we're done
+          setLoading(false);
         }
-      } else {
-        setUser(null);
       }
-      
-      setLoading(false);
-    });
+    );
 
-    // Clean up the listener when the component unmounts
-    return () => {
-      subscription?.unsubscribe();
-    };
+    // Clean up on unmount
+    return () => subscription?.unsubscribe();
   }, []);
 
   // Sign up function
-  const signUp = async (email, password, userData) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Register with Supabase Auth
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: userData,
-        },
-      });
-      
-      if (signUpError) throw signUpError;
-      
-      if (!data?.user) {
-        throw new Error('Registration failed - no user was created');
-      }
-      
-      // Create user profile (this is a failsafe - the trigger should handle this,
-      // but we'll do it manually as well to ensure it exists)
-      await createUserProfile({
-        ...data.user,
-        email,
-        user_metadata: userData
-      });
-      
-      return data;
-    } catch (err) {
-      console.error('Error in signUp:', err);
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+  const signUp = async (userData) => {
+    return await auth.signUp(userData);
   };
   
   // Sign in function
-  const signIn = async (email, password) => {
-    setLoading(true);
-    setError(null);
+  const signIn = async (credentials) => {
+    const result = await auth.signIn(credentials);
     
-    try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    // If sign-in was successful, handle it
+    if (result.data?.session) {
+      setSession(result.data.session);
       
-      if (signInError) throw signInError;
-      
-      return data;
-    } catch (err) {
-      console.error('Error in signIn:', err);
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
+      // Set user profile if available, even if minimal
+      if (result.data?.profile) {
+        setUser(result.data.profile);
+      } else if (result.data?.user) {
+        // Create a minimal profile from user data as a last resort
+        const minimalProfile = {
+          id: result.data.user.id,
+          email: result.data.user.email,
+          first_name: result.data.user.user_metadata?.first_name || '',
+          last_name: result.data.user.user_metadata?.last_name || '',
+          is_minimal_profile: true
+        };
+        setUser(minimalProfile);
+      }
     }
+    
+    return result;
   };
   
   // Sign out function
   const signOut = async () => {
-    setError(null);
-    
     try {
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) throw signOutError;
-    } catch (err) {
-      console.error('Error in signOut:', err);
-      setError(err);
-      throw err;
+      const { error } = await auth.signOut();
+      if (error) throw error;
+      setUser(null);
+      setSession(null);
+      return { error: null };
+    } catch (error) {
+      return { error };
     }
   };
   
@@ -156,11 +158,9 @@ export const AuthProvider = ({ children }) => {
     user,
     session,
     loading,
-    error,
     signUp,
     signIn,
     signOut,
-    getCurrentUser,
   };
   
   return (

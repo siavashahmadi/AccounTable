@@ -1,8 +1,17 @@
-# Database Setup for AccounTable
+# AccounTable - Accountability Partner Web App
 
-This directory contains the database schema and configuration for the AccounTable application.
+AccounTable is a web application that connects users as accountability partners to help them achieve their goals through effective mutual accountability. The application is built using React for the frontend, Python for the backend/API, and Supabase for authentication and data storage.
 
-## Setting up the Database in Supabase
+## Core Features
+
+- **User Authentication & Profile**: Secure registration and login with personal information and preferences
+- **Partnership Formation**: Guided partner selection with trial periods and compatibility matching
+- **Goal Setting & Tracking**: SMART goal creation with progress visualization
+- **Communication System**: In-app messaging and scheduled check-ins
+- **Accountability Features**: Progress tracking, milestone celebrations, and check-in management
+- **Feedback System**: Guided feedback templates promoting positive reinforcement
+
+## Database Setup in Supabase
 
 1. **Create a new Supabase project**:
    - Go to [https://app.supabase.io/](https://app.supabase.io/)
@@ -27,10 +36,93 @@ This directory contains the database schema and configuration for the AccounTabl
    - Configure any other auth providers you want to use
    - (Optional) Configure Email templates
 
-5. **Configure Storage** (if using avatar uploads):
+5. **Configure Storage**:
    - Navigate to Storage
    - Create a new bucket called `avatars`
    - Set the privacy to public (or configure appropriate RLS policies)
+
+## Database Schema
+
+### Users Table
+```sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email TEXT UNIQUE NOT NULL,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  avatar_url TEXT,
+  time_zone TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+### Partnerships Table
+```sql
+CREATE TABLE partnerships (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_one UUID REFERENCES users(id) NOT NULL,
+  user_two UUID REFERENCES users(id) NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'trial', 'active', 'ended')),
+  trial_end_date TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_one, user_two)
+);
+```
+
+### Goals Table
+```sql
+CREATE TABLE goals (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) NOT NULL,
+  partnership_id UUID REFERENCES partnerships(id) NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'abandoned')),
+  start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  target_date TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+### Check-ins Table
+```sql
+CREATE TABLE check_ins (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  partnership_id UUID REFERENCES partnerships(id) NOT NULL,
+  scheduled_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+### Progress Updates Table
+```sql
+CREATE TABLE progress_updates (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  goal_id UUID REFERENCES goals(id) NOT NULL,
+  user_id UUID REFERENCES users(id) NOT NULL,
+  description TEXT NOT NULL,
+  progress_value NUMERIC,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+### Messages Table
+```sql
+CREATE TABLE messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  partnership_id UUID REFERENCES partnerships(id) NOT NULL,
+  sender_id UUID REFERENCES users(id) NOT NULL,
+  content TEXT NOT NULL,
+  read_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
 
 ## Troubleshooting Common Issues
 
@@ -39,11 +131,10 @@ This directory contains the database schema and configuration for the AccounTabl
 If user records are not being automatically created in the `users` table when signing up:
 
 1. Check if the `handle_new_user` trigger is working:
-   - Run this SQL to test: 
-     ```sql
-     SELECT * FROM pg_trigger;
-     ```
-   - Look for `on_auth_user_created` in the results
+   ```sql
+   SELECT * FROM pg_trigger;
+   ```
+   Look for `on_auth_user_created` in the results
 
 2. Manually create the user record:
    ```sql
@@ -62,21 +153,46 @@ If you're getting "permission denied" errors, check:
    ```sql
    SELECT auth.uid();
    ```
-   
-## Database Schema
 
-The application uses the following tables:
+## Performance Considerations
 
-- `users`: User profiles
-- `partnerships`: Accountability partnerships between two users
-- `goals`: Goals set by users within partnerships
-- `check_ins`: Scheduled check-in meetings
-- `progress_updates`: Updates on goal progress
-- `messages`: Communication between partners
+1. **Real-time Updates**
+   - Utilize Supabase's real-time capabilities for instant message delivery
+   - Implement efficient polling for notifications and updates
+
+2. **Database Efficiency**
+   - Implement proper indexing for frequent queries
+   - Use appropriate caching strategies
+   - Monitor query performance
 
 ## Migrations
 
-For future database changes, create a new SQL file in this directory with a timestamp prefix:
-- Example: `20230501123000_add_notification_preferences.sql`
+For future database changes:
 
-Apply migrations in order to keep your database schema up to date. 
+1. Create a new SQL file in this directory with a timestamp prefix:
+   - Example: `20230501123000_add_notification_preferences.sql`
+
+2. Follow these guidelines for migrations:
+   - Make changes atomic and focused
+   - Include both "up" and "down" migration scripts
+   - Test migrations thoroughly before applying to production
+   - Document any manual steps required
+
+Apply migrations in order to keep your database schema up to date.
+
+## Security Best Practices
+
+1. **Data Protection**
+   - Implement proper Row Level Security (RLS) policies
+   - Encrypt sensitive data
+   - Regular security audits
+
+2. **Authentication**
+   - Use secure password policies
+   - Implement MFA where possible
+   - Regular session management
+
+3. **Privacy**
+   - Clear data sharing policies
+   - User consent management
+   - Data retention policies 
