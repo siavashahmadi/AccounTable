@@ -11,7 +11,7 @@ import { useContext } from "react"
 // } from "../components/ui/toast"
 
 const TOAST_LIMIT = 5
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY = 6000 // Changed from 1000000 to 6000ms (6 seconds)
 
 let count = 0
 
@@ -21,6 +21,21 @@ function genId() {
 }
 
 const toastTimeouts = new Map()
+
+// Function to automatically dismiss a toast after a timeout
+const scheduleToastDismissal = (id, duration = TOAST_REMOVE_DELAY) => {
+  if (toastTimeouts.has(id)) {
+    clearTimeout(toastTimeouts.get(id))
+  }
+  
+  const timeout = setTimeout(() => {
+    const dismissEvent = new CustomEvent("toast.remove", { detail: { toastId: id } })
+    document.dispatchEvent(dismissEvent)
+    toastTimeouts.delete(id)
+  }, duration)
+  
+  toastTimeouts.set(id, timeout)
+}
 
 export const addToast = (toast) => {
   const id = genId()
@@ -47,27 +62,41 @@ export function useToast() {
   return {
     toast: (props) => {
       const id = genId()
-      const toast = {
+      // Apply default duration of 6 seconds if not specified
+      const toastWithDefaults = {
+        duration: TOAST_REMOVE_DELAY, // Default duration
         ...props,
         id,
         open: true,
       }
 
       // Dispatch custom event for the Toaster component to pick up
-      const event = new CustomEvent("toast.add", { detail: { toast } })
+      const event = new CustomEvent("toast.add", { detail: { toast: toastWithDefaults } })
       document.dispatchEvent(event)
+
+      // Schedule automatic dismissal after specified duration or default 
+      scheduleToastDismissal(id, toastWithDefaults.duration)
 
       return {
         id,
         dismiss: () => {
+          if (toastTimeouts.has(id)) {
+            clearTimeout(toastTimeouts.get(id))
+            toastTimeouts.delete(id)
+          }
           const dismissEvent = new CustomEvent("toast.remove", { detail: { toastId: id } })
           document.dispatchEvent(dismissEvent)
         },
         update: (props) => {
+          // Reset the dismiss timer if duration is provided in the update
+          if (props.duration) {
+            scheduleToastDismissal(id, props.duration)
+          }
+          
           const updateEvent = new CustomEvent("toast.update", { 
             detail: { 
               toastId: id, 
-              toast: { ...toast, ...props } 
+              toast: { ...toastWithDefaults, ...props } 
             } 
           })
           document.dispatchEvent(updateEvent)
@@ -75,6 +104,10 @@ export function useToast() {
       }
     },
     dismiss: (toastId) => {
+      if (toastTimeouts.has(toastId)) {
+        clearTimeout(toastTimeouts.get(toastId))
+        toastTimeouts.delete(toastId)
+      }
       const dismissEvent = new CustomEvent("toast.remove", { detail: { toastId } })
       document.dispatchEvent(dismissEvent)
     },

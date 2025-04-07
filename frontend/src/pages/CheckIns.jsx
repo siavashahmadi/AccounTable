@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import { Loader2 } from 'lucide-react';
 
 const CheckIns = () => {
   const navigate = useNavigate();
@@ -110,7 +111,14 @@ const CheckIns = () => {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading check-ins...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

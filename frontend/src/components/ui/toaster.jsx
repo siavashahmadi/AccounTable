@@ -6,43 +6,57 @@ import {
   ToastProvider,
   ToastTitle,
   ToastViewport,
-  ToastAction,
 } from "./toast"
+
+const TOAST_LIMIT = 5
 
 export function Toaster() {
   const [toasts, setToasts] = useState([])
 
   useEffect(() => {
-    // Custom event listener for toast.add
-    const handleAddToast = (event) => {
-      const { toast } = event.detail
-      setToasts((prevToasts) => [...prevToasts, toast])
+    const handleAddToast = (e) => {
+      const { toast } = e.detail
+
+      // Ensure we don't exceed the toast limit, removing the oldest toast if needed
+      setToasts((prevToasts) => {
+        if (prevToasts.length >= TOAST_LIMIT) {
+          const newToasts = [...prevToasts]
+          newToasts.shift() // Remove the oldest toast
+          return [...newToasts, toast]
+        }
+        return [...prevToasts, toast]
+      })
     }
 
-    // Custom event listener for toast.remove
-    const handleRemoveToast = (event) => {
-      const { toastId } = event.detail
-      setToasts((prevToasts) => 
-        prevToasts.filter((toast) => toast.id !== toastId)
-      )
+    const handleRemoveToast = (e) => {
+      const { toastId } = e.detail
+      if (toastId) {
+        setToasts((prevToasts) =>
+          prevToasts.map((toast) =>
+            toast.id === toastId
+              ? {
+                  ...toast,
+                  open: false,
+                }
+              : toast
+          )
+        )
+      }
     }
 
-    // Custom event listener for toast.update
-    const handleUpdateToast = (event) => {
-      const { toastId, toast } = event.detail
-      setToasts((prevToasts) => 
-        prevToasts.map((t) => 
-          t.id === toastId ? { ...t, ...toast } : t
+    const handleUpdateToast = (e) => {
+      const { toastId, toast: newToast } = e.detail
+      setToasts((prevToasts) =>
+        prevToasts.map((toast) =>
+          toast.id === toastId ? { ...toast, ...newToast } : toast
         )
       )
     }
 
-    // Add event listeners
     document.addEventListener("toast.add", handleAddToast)
     document.addEventListener("toast.remove", handleRemoveToast)
     document.addEventListener("toast.update", handleUpdateToast)
 
-    // Clean up event listeners
     return () => {
       document.removeEventListener("toast.add", handleAddToast)
       document.removeEventListener("toast.remove", handleRemoveToast)
@@ -52,19 +66,20 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(({ id, title, description, action, ...props }) => (
-        <Toast key={id} {...props}>
-          <div className="grid gap-1">
-            {title && <ToastTitle>{title}</ToastTitle>}
-            {description && <ToastDescription>{description}</ToastDescription>}
-          </div>
-          {action && <ToastAction altText="Action">{action}</ToastAction>}
-          <ToastClose onClick={() => {
-            const dismissEvent = new CustomEvent("toast.remove", { detail: { toastId: id } })
-            document.dispatchEvent(dismissEvent)
-          }} />
-        </Toast>
-      ))}
+      {toasts.map(function ({ id, title, description, action, ...props }) {
+        return (
+          <Toast key={id} duration={props.duration || 6000} {...props}>
+            <div className="grid gap-1">
+              {title && <ToastTitle>{title}</ToastTitle>}
+              {description && (
+                <ToastDescription>{description}</ToastDescription>
+              )}
+            </div>
+            {action}
+            <ToastClose />
+          </Toast>
+        )
+      })}
       <ToastViewport />
     </ToastProvider>
   )

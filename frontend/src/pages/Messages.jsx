@@ -7,7 +7,7 @@ import MessageComposer from '../components/messages/MessageComposer';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Loader2 } from 'lucide-react';
 
 const Messages = () => {
   const navigate = useNavigate();
@@ -84,8 +84,11 @@ const Messages = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading messages...</p>
+        </div>
       </div>
     );
   }

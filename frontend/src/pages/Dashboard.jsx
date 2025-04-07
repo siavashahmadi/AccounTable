@@ -3,15 +3,15 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/use-toast';
 import { Button } from '../components/ui/button';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
 } from '../components/ui/card';
-import { Target, Users, Calendar, AlertTriangle } from 'lucide-react';
+import { Target, Users, Calendar, AlertTriangle, Loader2 } from 'lucide-react';
 import { db } from '../lib/supabase';
 
 const Dashboard = () => {
@@ -26,21 +26,21 @@ const Dashboard = () => {
   useEffect(() => {
     const checkUserProfile = async () => {
       if (!user) return;
-      
+
       // If user exists but doesn't have first_name or last_name set, 
       // consider profile incomplete
       if (!user.first_name || !user.last_name) {
         setUserProfileComplete(false);
         return;
       }
-      
+
       setUserProfileComplete(true);
     };
 
     const fetchDashboardData = async () => {
       // Always set loading to true initially
       setLoading(true);
-      
+
       try {
         // First check if we have a user
         if (!user) {
@@ -48,19 +48,19 @@ const Dashboard = () => {
           setLoading(false);
           return;
         }
-        
+
         // Check if user profile is complete
         await checkUserProfile();
-        
+
         // Always try to fetch partnerships, even with incomplete profile
         try {
           const { data: partnershipsData } = await db.getPartnerships();
           setPartnerships(partnershipsData || []);
-          
+
           // If we have an active partnership, fetch goals
           if (partnershipsData && partnershipsData.length > 0) {
             const activePartnership = partnershipsData.find(p => p.status === 'active');
-            
+
             if (activePartnership) {
               // Fetch goals
               try {
@@ -110,8 +110,11 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full min-h-[300px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -163,7 +166,7 @@ const Dashboard = () => {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Welcome to AccounTable</h1>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Getting Started</CardTitle>
@@ -184,7 +187,7 @@ const Dashboard = () => {
                 </Link>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-4">
               <div className="bg-primary/10 text-primary font-bold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">2</div>
               <div>
@@ -197,7 +200,7 @@ const Dashboard = () => {
                 </Link>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-4">
               <div className="bg-primary/10 text-primary font-bold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">3</div>
               <div>
@@ -249,7 +252,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Dashboard</h1>
-      
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Partnership Card */}
         <Card>
@@ -285,7 +288,7 @@ const Dashboard = () => {
             )}
           </CardFooter>
         </Card>
-        
+
         {/* Goals Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -318,7 +321,7 @@ const Dashboard = () => {
             )}
           </CardFooter>
         </Card>
-        
+
         {/* Upcoming Check-ins Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -356,7 +359,7 @@ const Dashboard = () => {
           </CardFooter>
         </Card>
       </div>
-      
+
       {/* Activity Summary Section */}
       <Card className="mt-6">
         <CardHeader>
@@ -377,13 +380,12 @@ const Dashboard = () => {
                       <li key={goal.id} className="border-b pb-2">
                         <div className="flex justify-between">
                           <span className="font-medium">{goal.title}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            goal.status === 'active' 
-                              ? 'bg-primary/10 text-primary' 
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${goal.status === 'active'
+                              ? 'bg-primary/10 text-primary'
                               : goal.status === 'completed'
                                 ? 'bg-green-100 text-green-700'
                                 : 'bg-muted text-muted-foreground'
-                          }`}>
+                            }`}>
                             {goal.status}
                           </span>
                         </div>
@@ -395,7 +397,7 @@ const Dashboard = () => {
                   </ul>
                 </div>
               )}
-              
+
               {/* Partnerships history */}
               {partnerships.length > 0 && (
                 <div>
@@ -407,18 +409,18 @@ const Dashboard = () => {
                           <span className="font-medium">Partnership with {getPartnerName(partnership)}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             partnership.status === 'active' 
-                              ? 'bg-green-100 text-green-700'
+                              ? 'bg-green-100 text-green-700' 
                               : partnership.status === 'pending'
                                 ? 'bg-yellow-100 text-yellow-700'
-                                : partnership.status === 'paused'
-                                  ? 'bg-orange-100 text-orange-700' 
+                                : partnership.status === 'trial'
+                                  ? 'bg-blue-100 text-blue-700'
                                   : 'bg-muted text-muted-foreground'
                           }`}>
                             {partnership.status}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Created: {formatDate(partnership.created_at)}
+                          Created {formatDate(partnership.created_at)}
                         </p>
                       </li>
                     ))}
@@ -428,15 +430,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="text-center py-6">
-              <p className="text-muted-foreground">No activity yet. Start by finding a partner or creating a goal!</p>
-              <div className="flex justify-center gap-4 mt-4">
-                <Link to="/partnerships">
-                  <Button variant="outline">Find a Partner</Button>
-                </Link>
-                <Link to="/goals">
-                  <Button variant="outline">Create a Goal</Button>
-                </Link>
-              </div>
+              <p className="text-muted-foreground">No recent activity to show</p>
             </div>
           )}
         </CardContent>
@@ -445,4 +439,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard; 
+export default Dashboard;

@@ -7,6 +7,7 @@ import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card';
+import { Loader2 } from 'lucide-react';
 
 const ScheduleCheckIn = ({ partnership, onScheduled, onCancel }) => {
   const { toast } = useToast();
@@ -136,7 +137,7 @@ const ScheduleCheckIn = ({ partnership, onScheduled, onCancel }) => {
           >
             {scheduling ? (
               <>
-                <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 Scheduling...
               </>
             ) : (

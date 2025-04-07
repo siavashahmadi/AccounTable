@@ -22,7 +22,8 @@ import {
   Clock, 
   ChevronLeft, 
   Calendar, 
-  ArrowUpCircle 
+  ArrowUpCircle, 
+  Loader2 
 } from 'lucide-react';
 
 const GoalDetails = () => {
@@ -217,8 +218,11 @@ const GoalDetails = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading goal details...</p>
+        </div>
       </div>
     );
   }
@@ -368,7 +372,7 @@ const GoalDetails = () => {
               >
                 {submitting ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Submitting...
                   </>
                 ) : (

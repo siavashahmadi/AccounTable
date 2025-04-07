@@ -3,7 +3,7 @@ import { useToast } from '../../hooks/use-toast';
 import { db } from '../../lib/supabase';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Send } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 
 const MessageComposer = ({ partnership, user, onMessageSent }) => {
   const { toast } = useToast();
@@ -62,7 +62,7 @@ const MessageComposer = ({ partnership, user, onMessageSent }) => {
         size="icon"
       >
         {sending ? (
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
           <Send className="h-4 w-4" />
         )}

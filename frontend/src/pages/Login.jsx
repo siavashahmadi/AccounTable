@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/use-toast';
@@ -14,12 +14,14 @@ import {
   CardTitle 
 } from '../components/ui/card';
 import { supabase } from '../lib/supabase';
+import { Loader2 } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
+  const [networkError, setNetworkError] = useState(false);
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -27,9 +29,33 @@ const Login = () => {
   // Get the return URL from location state or default to dashboard
   const from = location.state?.from || '/dashboard';
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user) {
+      navigate(from, { replace: true });
+    }
+  }, [user, navigate, from]);
+
+  const handleNetworkRetry = async () => {
+    setNetworkError(false);
+    handleSubmit(new Event('retry'));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Basic validation
+    if (!email || !password) {
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: "Please enter both email and password.",
+      });
+      return;
+    }
+    
     setIsLoading(true);
+    setNetworkError(false);
 
     try {
       // Attempt to sign in
@@ -38,57 +64,43 @@ const Login = () => {
         password
       });
       
-      if (error && error.message.includes('timed out')) {
-        // Let's check if we're authenticated anyway before giving up
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          toast({
-            title: "Success",
-            description: "You have successfully logged in",
-          });
-          
-          navigate(from, { replace: true });
-          return;
+      if (error) {
+        if (error.isNetworkError) {
+          setNetworkError(true);
+          throw new Error(error.message);
         }
         
-        // If we get here, the user really isn't logged in
-        throw error;
-      } else if (error) {
-        throw error;
+        // Handle specific error cases
+        if (error.message?.includes("Invalid login")) {
+          throw new Error("Invalid email or password. Please try again.");
+        } else if (error.message?.includes("Email not confirmed")) {
+          throw new Error("Please confirm your email before signing in.");
+        } else {
+          throw error;
+        }
       }
       
-      if (!data) {
-        throw new Error('Sign in failed - no response data');
-      }
-      
-      // If we have a session or authenticated user, consider it a success even if profile is minimal
-      if (data.session || data.user) {
-        toast({
-          title: "Success",
-          description: "You have successfully logged in",
-        });
-        
-        navigate(from, { replace: true });
-      } else {
+      if (!data?.session) {
         throw new Error('Sign in failed - no session created');
       }
+      
+      // Success - show toast and redirect
+      toast({
+        title: "Success",
+        description: "You have successfully logged in",
+      });
+      
+      navigate(from, { replace: true });
     } catch (error) {
-      // Create a user-friendly error message
-      let errorMessage = "Invalid email or password. Please try again.";
-      
-      if (error.message?.includes("confirmation")) {
-        errorMessage = "Please confirm your email before signing in.";
-      } else if (error.message?.includes("timed out")) {
-        errorMessage = "Login timed out. Please try again or check your internet connection.";
-      }
-      
       toast({
         variant: "destructive",
         title: "Login failed",
-        description: errorMessage,
+        description: error.message || "Invalid email or password. Please try again.",
       });
     } finally {
-      setIsLoading(false);
+      if (!networkError) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -102,62 +114,83 @@ const Login = () => {
               Enter your credentials to access your account
             </CardDescription>
           </CardHeader>
-          <form onSubmit={handleSubmit}>
+          
+          {networkError ? (
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                  <Link 
-                    to="/forgot-password" 
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
+              <div className="bg-destructive/10 p-4 rounded-md">
+                <h3 className="font-medium text-destructive mb-2">Network Error</h3>
+                <p className="text-sm mb-4">
+                  Unable to connect to the authentication service. Please check your internet connection and try again.
+                </p>
+                <Button 
+                  onClick={handleNetworkRetry}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Retry Connection
+                </Button>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <Button 
-                type="submit" 
-                className="w-full" 
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
-                    <span>Signing in...</span>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    <Link 
+                      to="/forgot-password" 
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
                   </div>
-                ) : (
-                  "Sign in"
-                )}
-              </Button>
-              <div className="text-center text-sm">
-                Don't have an account?{' '}
-                <Link to="/register" className="text-primary hover:underline">
-                  Sign up
-                </Link>
-              </div>
-            </CardFooter>
-          </form>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+              </CardContent>
+              <CardFooter className="flex flex-col space-y-4">
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <span>Signing in...</span>
+                    </div>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+                <div className="text-center text-sm">
+                  Don't have an account?{' '}
+                  <Link to="/register" className="text-primary hover:underline">
+                    Sign up
+                  </Link>
+                </div>
+              </CardFooter>
+            </form>
+          )}
         </Card>
       </div>
     </div>
