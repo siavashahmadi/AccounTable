@@ -65,11 +65,30 @@ export const setupRealtimeSubscriptions = (userId) => {
     )
     .subscribe()
 
+  // Subscribe to check-in updates
+  const checkInsSubscription = supabase
+    .channel('check-ins')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'check_ins',
+        filter: `partnership.user1_id.eq.${userId},partnership.user2_id.eq.${userId}`,
+      },
+      (payload) => {
+        console.log('Check-in update:', payload);
+        // Handle check-in update (implement your handler)
+      }
+    )
+    .subscribe();
+
   // Return cleanup function
   return () => {
     messagesSubscription.unsubscribe()
     partnershipsSubscription.unsubscribe()
     goalsSubscription.unsubscribe()
+    checkInsSubscription.unsubscribe()
   }
 }
 
@@ -308,16 +327,54 @@ export const db = {
   
   // Partnerships
   getPartnerships: async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data, error } = await supabase
-      .from('partnerships')
-      .select(`
-        *,
-        user1:users!partnerships_user1_id_fkey(*),
-        user2:users!partnerships_user2_id_fkey(*)
-      `)
-      .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
-    return { data, error }
+    try {
+      // Get current user first
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      
+      if (!user) {
+        return { data: [], error: new Error('No authenticated user') };
+      }
+
+      const { data: partnerships, error } = await supabase
+        .from('partnerships')
+        .select(`
+          *,
+          user1:user1_id(*),
+          user2:user2_id(*)
+        `)
+        .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return { data: partnerships || [], error: null };
+    } catch (error) {
+      console.error('Error getting partnerships:', error);
+      return { data: [], error };
+    }
+  },
+
+  createPartnership: async ({ user1_id, user2_id, status }) => {
+    try {
+      const { data, error } = await supabase
+        .from('partnerships')
+        .insert([
+          { 
+            user1_id,
+            user2_id,
+            status,
+            trial_end_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 14 days from now
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error creating partnership:', error);
+      return { data: null, error };
+    }
   },
 
   // Get partnerships by user ID (for when you need to fetch partnerships for a specific user)
@@ -334,13 +391,34 @@ export const db = {
   },
 
   // Goals
-  getGoals: async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data, error } = await supabase
-      .from('goals')
-      .select('*')
-      .eq('owner_id', user.id)
-    return { data, error }
+  async getGoals() {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      
+      if (!user) {
+        return { data: [], error: new Error('No authenticated user') };
+      }
+
+      const { data, error } = await supabase
+        .from('goals')
+        .select(`
+          *,
+          partnership:partnerships (
+            id,
+            user1:users!partnerships_user1_id_fkey (id, first_name, last_name),
+            user2:users!partnerships_user2_id_fkey (id, first_name, last_name)
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return { data: data || [], error: null };
+    } catch (error) {
+      console.error('Error in getGoals:', error);
+      return { data: [], error };
+    }
   },
   
   // Get goals for a specific partnership
@@ -354,24 +432,35 @@ export const db = {
 
   // Check-ins
   getUpcomingCheckIns: async (userId) => {
-    const now = new Date().toISOString()
-    
-    const { data, error } = await supabase
-      .from('check_ins')
-      .select(`
-        *,
-        partnership:partnerships (
-          id,
-          user1:users!partnerships_user1_id_fkey (id, first_name, last_name),
-          user2:users!partnerships_user2_id_fkey (id, first_name, last_name)
-        )
-      `)
-      .or(`partnership.user1_id.eq.${userId},partnership.user2_id.eq.${userId}`)
-      .gte('scheduled_at', now)
-      .order('scheduled_at', { ascending: true })
-      .limit(5)
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      
+      if (!user) {
+        return { data: [], error: new Error('No authenticated user') };
+      }
 
-    return { data, error }
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('check_ins')
+        .select(`
+          *,
+          partnership:partnerships (
+            id,
+            user1:users!partnerships_user1_id_fkey (id, first_name, last_name, avatar_url),
+            user2:users!partnerships_user2_id_fkey (id, first_name, last_name, avatar_url)
+          )
+        `)
+        .or(`partnership.user1_id.eq.${user.id},partnership.user2_id.eq.${user.id}`)
+        .gte('scheduled_at', now)
+        .order('scheduled_at', { ascending: true });
+
+      if (error) throw error;
+      return { data: data || [], error: null };
+    } catch (error) {
+      console.error('Error fetching check-ins:', error);
+      return { data: [], error };
+    }
   },
   
   // Progress updates
@@ -401,13 +490,35 @@ export const db = {
 
   // Messages
   getMessages: async (partnershipId, limit = 50) => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*, sender:users!messages_sender_id_fkey(*)')
-      .eq('partnership_id', partnershipId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    return { data, error }
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      
+      if (!user) {
+        return { data: [], error: new Error('No authenticated user') };
+      }
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:users!messages_sender_id_fkey (
+            id,
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `)
+        .eq('partnership_id', partnershipId)
+        .order('created_at', { ascending: true })
+        .limit(limit);
+
+      if (error) throw error;
+      return { data: data || [], error: null };
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      return { data: [], error };
+    }
   },
   
   // Send a message
@@ -423,5 +534,88 @@ export const db = {
       .single()
 
     return { data, error }
+  },
+
+  updateCheckInStatus: async (checkInId, status) => {
+    try {
+      const { data, error } = await supabase
+        .from('check_ins')
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', checkInId)
+        .select()
+        .single();
+
+      return { data, error };
+    } catch (error) {
+      console.error('Error updating check-in status:', error);
+      return { data: null, error };
+    }
+  },
+
+  createCheckIn: async ({ partnership_id, scheduled_at, duration_minutes, notes }) => {
+    try {
+      const { data, error } = await supabase
+        .from('check_ins')
+        .insert({
+          partnership_id,
+          scheduled_at,
+          duration_minutes,
+          notes,
+          status: 'scheduled'
+        })
+        .select()
+        .single();
+
+      return { data, error };
+    } catch (error) {
+      console.error('Error creating check-in:', error);
+      return { data: null, error };
+    }
+  },
+
+  updateProfile: async (userId, updates) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select()
+        .single();
+
+      return { data, error };
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      return { data: null, error };
+    }
+  },
+
+  uploadAvatar: async (userId, file) => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${userId}/${Math.random()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl }, error: urlError } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      if (urlError) throw urlError;
+
+      return { data: { publicUrl }, error: null };
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      return { data: null, error };
+    }
   },
 } 

@@ -47,24 +47,24 @@ export interface Database {
       partnerships: {
         Row: {
           id: string
-          user1_id: string
-          user2_id: string
+          user_one: string
+          user_two: string
           status: 'pending' | 'active' | 'paused' | 'completed'
           created_at: string
           updated_at: string | null
         }
         Insert: {
           id?: string
-          user1_id: string
-          user2_id: string
+          user_one: string
+          user_two: string
           status?: 'pending' | 'active' | 'paused' | 'completed'
           created_at?: string
           updated_at?: string | null
         }
         Update: {
           id?: string
-          user1_id?: string
-          user2_id?: string
+          user_one?: string
+          user_two?: string
           status?: 'pending' | 'active' | 'paused' | 'completed'
           created_at?: string
           updated_at?: string | null
@@ -74,7 +74,7 @@ export interface Database {
         Row: {
           id: string
           partnership_id: string
-          owner_id: string
+          user_id: string
           title: string
           description: string | null
           status: 'active' | 'completed' | 'abandoned'
@@ -85,7 +85,7 @@ export interface Database {
         Insert: {
           id?: string
           partnership_id: string
-          owner_id: string
+          user_id: string
           title: string
           description?: string | null
           status?: 'active' | 'completed' | 'abandoned'
@@ -96,7 +96,7 @@ export interface Database {
         Update: {
           id?: string
           partnership_id?: string
-          owner_id?: string
+          user_id?: string
           title?: string
           description?: string | null
           status?: 'active' | 'completed' | 'abandoned'

@@ -88,7 +88,7 @@ const Layout = () => {
           </NavLink>
           
           <NavLink 
-            to="/checkins" 
+            to="/check-ins" 
             className={({ isActive }) => 
               `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
                 isActive 

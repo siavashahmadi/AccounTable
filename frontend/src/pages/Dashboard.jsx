@@ -38,61 +38,52 @@ const Dashboard = () => {
     };
 
     const fetchDashboardData = async () => {
-      if (!user) return;
-
+      // Always set loading to true initially
       setLoading(true);
+      
       try {
+        // First check if we have a user
+        if (!user) {
+          console.log("No user found, skipping data fetch");
+          setLoading(false);
+          return;
+        }
+        
         // Check if user profile is complete
         await checkUserProfile();
-
-        // Only fetch data if we have a user with profile
-        if (user && userProfileComplete) {
-          // Fetch partnerships
-          try {
-            const { data: partnershipsData } = await db.getPartnerships();
-            setPartnerships(partnershipsData || []);
-
-            // If there is an active partnership, fetch related data
-            if (partnershipsData && partnershipsData.length > 0) {
-              const activePartnership = partnershipsData.find(p => p.status === 'active');
-              
-              if (activePartnership) {
-                // Fetch goals for this partnership
-                try {
-                  const { data: goalsData } = await db.getGoals();
-                  setGoals(goalsData || []);
-                } catch (goalErr) {
-                  console.error('Error fetching goals:', goalErr);
-                }
-                
-                // For check-ins we can use the same data fetch since the dashboard 
-                // should only show check-ins for active partnerships
-                // We'll leave this for a separate implementation if needed
+        
+        // Always try to fetch partnerships, even with incomplete profile
+        try {
+          const { data: partnershipsData } = await db.getPartnerships();
+          setPartnerships(partnershipsData || []);
+          
+          // If we have an active partnership, fetch goals
+          if (partnershipsData && partnershipsData.length > 0) {
+            const activePartnership = partnershipsData.find(p => p.status === 'active');
+            
+            if (activePartnership) {
+              // Fetch goals
+              try {
+                const { data: goalsData } = await db.getGoals();
+                setGoals(goalsData || []);
+              } catch (goalErr) {
+                console.error('Error fetching goals:', goalErr);
               }
             }
-          } catch (partnershipErr) {
-            console.error('Error in partnership fetch:', partnershipErr);
-            toast({
-              variant: "destructive",
-              title: "Error loading partnerships",
-              description: "Your partnerships couldn't be loaded. Please try again.",
-            });
           }
+        } catch (partnershipErr) {
+          console.error('Error fetching partnerships:', partnershipErr);
         }
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        toast({
-          variant: "destructive",
-          title: "Error loading dashboard",
-          description: "Some dashboard data couldn't be loaded. Please refresh to try again.",
-        });
+        console.error('Error in dashboard data fetch:', error);
       } finally {
+        // Always turn off loading no matter what
         setLoading(false);
       }
     };
 
     fetchDashboardData();
-  }, [user, toast, userProfileComplete]);
+  }, [user]);
 
   const handleRefresh = async () => {
     setLoading(true);
@@ -100,12 +91,10 @@ const Dashboard = () => {
       // Try to get the full user again, which should create the profile if needed
       const { data: refreshedUser } = await getCurrentUser();
       if (refreshedUser) {
-        // Re-render component with the refreshed user info
         toast({
           title: "Profile updated",
           description: "Your profile has been refreshed.",
         });
-        window.location.reload();
       }
     } catch (error) {
       console.error('Error refreshing user profile:', error);
@@ -123,6 +112,23 @@ const Dashboard = () => {
     return (
       <div className="flex items-center justify-center h-full min-h-[300px]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // If we don't have a user yet, show a placeholder with loading info
+  if (!user) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-6">
+            <h2 className="text-xl font-semibold mb-2">Welcome to AccounTable</h2>
+            <p className="text-center mb-4">
+              Your dashboard is getting ready. This should only take a moment.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -146,8 +152,69 @@ const Dashboard = () => {
     );
   }
 
-  const activePartnership = partnerships.find(p => p.status === 'active');
-  const activeGoal = goals.find(g => g.status === 'active');
+  const activePartnership = partnerships?.find(p => p.status === 'active');
+  const activeGoal = goals?.find(g => g.status === 'active');
+
+  // Check if this is a first-time user with no data
+  const isNewUser = (partnerships?.length === 0 && goals?.length === 0);
+
+  // If this is a new user, show a welcome section with next steps
+  if (isNewUser) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Welcome to AccounTable</h1>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Getting Started</CardTitle>
+            <CardDescription>
+              Follow these steps to begin your accountability journey
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-start gap-4">
+              <div className="bg-primary/10 text-primary font-bold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">1</div>
+              <div>
+                <h3 className="font-semibold text-lg">Find an Accountability Partner</h3>
+                <p className="text-muted-foreground">
+                  Connect with someone who shares your goals and values to create a mutual accountability relationship.
+                </p>
+                <Link to="/partnerships" className="mt-2 inline-block">
+                  <Button>Find a Partner</Button>
+                </Link>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-4">
+              <div className="bg-primary/10 text-primary font-bold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">2</div>
+              <div>
+                <h3 className="font-semibold text-lg">Set Your First Goal</h3>
+                <p className="text-muted-foreground">
+                  Create a SMART goal that you want to achieve with your accountability partner's support.
+                </p>
+                <Link to="/goals" className="mt-2 inline-block">
+                  <Button>Create a Goal</Button>
+                </Link>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-4">
+              <div className="bg-primary/10 text-primary font-bold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">3</div>
+              <div>
+                <h3 className="font-semibold text-lg">Schedule Regular Check-ins</h3>
+                <p className="text-muted-foreground">
+                  Commit to regular check-ins with your partner to track progress and stay motivated.
+                </p>
+                <Link to="/checkins" className="mt-2 inline-block">
+                  <Button>Schedule Check-ins</Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Helper function to get partner's name with safety check
   const getPartnerName = (partnership) => {

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './contexts/AuthContext'
 import { Toaster } from './components/ui/toaster'
 
-// Import pages (to be created)
+// Import pages
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
@@ -12,6 +12,9 @@ import Register from './pages/Register'
 import Partnerships from './pages/Partnerships'
 import Goals from './pages/Goals'
 import GoalDetails from './pages/GoalDetails'
+import Profile from './pages/Profile'
+import Messages from './pages/Messages'
+import CheckIns from './pages/CheckIns'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
@@ -39,6 +42,9 @@ function App() {
               <Route path="/partnerships/:id" element={<Partnerships />} />
               <Route path="/goals" element={<Goals />} />
               <Route path="/goals/:id" element={<GoalDetails />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/messages" element={<Messages />} />
+              <Route path="/check-ins" element={<CheckIns />} />
             </Route>
           </Routes>
         </Router>

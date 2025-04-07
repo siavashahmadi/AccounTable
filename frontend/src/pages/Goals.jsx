@@ -32,17 +32,20 @@ const Goals = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       try {
         // Fetch goals
-        const { data: goalsData, error: goalsError } = await db.getGoals(user.id);
+        const { data: goalsData, error: goalsError } = await db.getGoals();
         if (goalsError) throw goalsError;
         setGoals(goalsData || []);
 
         // Fetch partnerships for goal creation
-        const { data: partnershipsData, error: partnershipsError } = await db.getPartnerships(user.id);
+        const { data: partnershipsData, error: partnershipsError } = await db.getPartnerships();
         if (partnershipsError) throw partnershipsError;
         
         // Filter to only active or trial partnerships
@@ -69,7 +72,9 @@ const Goals = () => {
     };
 
     fetchData();
-  }, [user, toast]);
+    // Only depend on user changes, not toast
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleCreateGoal = async (e) => {
     e.preventDefault();

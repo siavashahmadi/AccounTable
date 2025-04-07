@@ -26,13 +26,29 @@ const Partnerships = () => {
 
   useEffect(() => {
     const fetchPartnerships = async () => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       try {
-        const { data, error } = await db.getPartnerships(user.id);
-        if (error) throw error;
-        setPartnerships(data || []);
+        const { data, error } = await db.getPartnerships();
+        if (error) {
+          if (error.message === 'No authenticated user') {
+            // Handle unauthenticated case
+            setPartnerships([]);
+          } else {
+            console.error('Error fetching partnerships:', error);
+            toast({
+              variant: "destructive",
+              title: "Error loading partnerships",
+              description: error.message || "Failed to load your partnerships",
+            });
+          }
+        } else {
+          setPartnerships(data || []);
+        }
       } catch (error) {
         console.error('Error fetching partnerships:', error);
         toast({
@@ -46,7 +62,9 @@ const Partnerships = () => {
     };
 
     fetchPartnerships();
-  }, [user, toast]);
+    // Only depend on user changes, not toast
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleInvitePartner = async (e) => {
     e.preventDefault();
@@ -71,7 +89,7 @@ const Partnerships = () => {
       if (partnershipError) throw partnershipError;
       
       const alreadyPartners = existingPartnerships?.some(p => 
-        (p.user_one.id === userData.id || p.user_two.id === userData.id) && 
+        (p.user1.id === userData.id || p.user2.id === userData.id) && 
         p.status !== 'ended'
       );
       
@@ -86,8 +104,8 @@ const Partnerships = () => {
 
       // Create the partnership
       const { data: newPartnership, error: createError } = await db.createPartnership({
-        user_one: user.id,
-        user_two: userData.id,
+        user1: user.id,
+        user2: userData.id,
         status: 'pending',
         created_by: user.id
       });
@@ -148,8 +166,8 @@ const Partnerships = () => {
   // Helper function to get partner's name
   const getPartnerInfo = (partnership) => {
     if (!partnership) return { name: '', email: '' };
-    const isUserOne = partnership.user_one.id === user?.id;
-    const partner = isUserOne ? partnership.user_two : partnership.user_one;
+    const isUserOne = partnership.user1.id === user?.id;
+    const partner = isUserOne ? partnership.user2 : partnership.user1;
     return { 
       name: `${partner.first_name} ${partner.last_name}`,
       email: partner.email 

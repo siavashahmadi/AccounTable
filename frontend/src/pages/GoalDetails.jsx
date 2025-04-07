@@ -41,7 +41,10 @@ const GoalDetails = () => {
 
   useEffect(() => {
     const fetchGoalData = async () => {
-      if (!user || !id) return;
+      if (!user || !id) {
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       try {
@@ -85,7 +88,9 @@ const GoalDetails = () => {
     };
 
     fetchGoalData();
-  }, [id, user, toast, navigate]);
+    // Only depend on id and user changes, not toast or navigate
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user]);
 
   const handleAddProgressUpdate = async (e) => {
     e.preventDefault();

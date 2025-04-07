@@ -24,25 +24,37 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Get initial session
     const initializeAuth = async () => {
-      // Set a timeout to ensure the loading state gets reset
-      const timeoutId = setTimeout(() => {
-        setLoading(false);
-      }, 5000);
-      
       try {
         const { session: currentSession } = await auth.getSession();
         setSession(currentSession);
         
         if (currentSession?.user) {
-          const { data: profile, error } = await db.getCurrentUser();
-          if (!error && profile) {
-            setUser(profile);
+          // Create a minimal profile to ensure we always have something
+          const minimalProfile = {
+            id: currentSession.user.id,
+            email: currentSession.user.email,
+            first_name: currentSession.user.user_metadata?.first_name || '',
+            last_name: currentSession.user.user_metadata?.last_name || '',
+            is_minimal_profile: true
+          };
+          
+          // Set minimal profile right away so user isn't blocked
+          setUser(minimalProfile);
+          
+          // Try to get full profile but don't block on it
+          try {
+            const { data: profile } = await db.getCurrentUser();
+            if (profile) {
+              setUser(profile);
+            }
+          } catch (profileError) {
+            console.error('Error fetching profile:', profileError);
+            // Keep using minimal profile
           }
         }
       } catch (error) {
-        // Handle initialization errors silently
+        console.error('Auth initialization error:', error);
       } finally {
-        clearTimeout(timeoutId); // Clear the timeout since we're done
         setLoading(false);
       }
     };
@@ -52,16 +64,11 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        // Set a timeout to ensure the loading state gets reset
-        const timeoutId = setTimeout(() => {
-          setLoading(false);
-        }, 5000);
+        setSession(currentSession);
         
         try {
-          setSession(currentSession);
-          
           if (currentSession?.user) {
-            // Create a minimal profile early as a fallback
+            // Always set a minimal profile immediately
             const minimalProfile = {
               id: currentSession.user.id,
               email: currentSession.user.email,
@@ -69,37 +76,24 @@ export const AuthProvider = ({ children }) => {
               last_name: currentSession.user.user_metadata?.last_name || '',
               is_minimal_profile: true
             };
-            
-            // Set minimal profile right away so we have something
             setUser(minimalProfile);
             
-            // Try to get a full profile
-            const { data: profile, error } = await db.getCurrentUser();
-            
-            if (!error && profile) {
-              // Only update if we got an actual profile
-              setUser(profile);
+            // Try to get full profile in background
+            try {
+              const { data: profile } = await db.getCurrentUser();
+              if (profile) {
+                setUser(profile);
+              }
+            } catch (profileError) {
+              console.error('Error fetching profile on auth change:', profileError);
+              // Keep using minimal profile
             }
           } else {
             setUser(null);
           }
         } catch (error) {
-          // Handle auth state change errors silently
-          // Keep minimal profile if we set it, otherwise clear user
-          if (!user && currentSession?.user) {
-            const minimalProfile = {
-              id: currentSession.user.id,
-              email: currentSession.user.email,
-              first_name: currentSession.user.user_metadata?.first_name || '',
-              last_name: currentSession.user.user_metadata?.last_name || '',
-              is_minimal_profile: true
-            };
-            setUser(minimalProfile);
-          } else if (!currentSession) {
-            setUser(null);
-          }
+          console.error('Auth state change error:', error);
         } finally {
-          clearTimeout(timeoutId); // Clear the timeout since we're done
           setLoading(false);
         }
       }
@@ -154,6 +148,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
   
+  // Add a function to get current user that can be called from components
+  const getCurrentUser = async () => {
+    if (!session) {
+      return { data: null, error: new Error('No active session') };
+    }
+    
+    try {
+      const { data, error } = await db.getCurrentUser();
+      
+      if (!error && data) {
+        setUser(data);
+      }
+      
+      return { data, error };
+    } catch (error) {
+      return { data: null, error };
+    }
+  };
+  
   const value = {
     user,
     session,
@@ -161,6 +174,7 @@ export const AuthProvider = ({ children }) => {
     signUp,
     signIn,
     signOut,
+    getCurrentUser, // Add getCurrentUser to the context value
   };
   
   return (
