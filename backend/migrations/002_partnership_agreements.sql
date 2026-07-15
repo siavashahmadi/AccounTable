@@ -22,26 +22,23 @@ CREATE INDEX IF NOT EXISTS idx_partnership_agreements_partnership_id ON partners
 -- Add RLS policies for partnership agreements
 ALTER TABLE partnership_agreements ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY partnership_agreements_select ON partnership_agreements 
-  FOR SELECT 
-  USING (
+CREATE POLICY "Users can view agreements for their partnerships" ON partnership_agreements FOR SELECT
+USING (
     EXISTS (
-      SELECT 1 FROM partnerships 
-      WHERE partnerships.id = partnership_agreements.partnership_id
-      AND (partnerships.user_one = auth.uid() OR partnerships.user_two = auth.uid())
+        SELECT 1 FROM partnerships
+        WHERE id = partnership_id
+        AND (user1_id = auth.uid() OR user2_id = auth.uid())
     )
-  );
+);
 
-CREATE POLICY partnership_agreements_insert ON partnership_agreements 
-  FOR INSERT 
-  WITH CHECK (
-    created_by = auth.uid() AND
+CREATE POLICY "Users can create/update agreements for their partnerships" ON partnership_agreements FOR INSERT
+WITH CHECK (
     EXISTS (
-      SELECT 1 FROM partnerships 
-      WHERE partnerships.id = partnership_agreements.partnership_id
-      AND (partnerships.user_one = auth.uid() OR partnerships.user_two = auth.uid())
+        SELECT 1 FROM partnerships
+        WHERE id = partnership_id
+        AND (user1_id = auth.uid() OR user2_id = auth.uid())
     )
-  );
+);
 
 CREATE POLICY partnership_agreements_update ON partnership_agreements 
   FOR UPDATE 
@@ -49,7 +46,7 @@ CREATE POLICY partnership_agreements_update ON partnership_agreements
     EXISTS (
       SELECT 1 FROM partnerships 
       WHERE partnerships.id = partnership_agreements.partnership_id
-      AND (partnerships.user_one = auth.uid() OR partnerships.user_two = auth.uid())
+      AND (partnerships.user1_id = auth.uid() OR partnerships.user2_id = auth.uid())
     )
   )
   WITH CHECK (

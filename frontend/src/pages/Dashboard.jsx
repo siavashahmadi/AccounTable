@@ -223,7 +223,7 @@ const Dashboard = () => {
   const getPartnerName = (partnership) => {
     if (!partnership) return '';
     try {
-      const isUserOne = partnership.user1.id === user?.id;
+      const isUserOne = partnership.user1_id === user?.id;
       const partner = isUserOne ? partnership.user2 : partnership.user1;
       return partner ? `${partner.first_name || ''} ${partner.last_name || ''}`.trim() : 'Partner';
     } catch (e) {

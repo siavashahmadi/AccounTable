@@ -166,21 +166,19 @@ async def register_user(
                 supabase.table("pending_invitations").update({"status": "accepted"}).eq("id", invitation["id"]).execute()
                 
                 # Find the pending partnership
-                partnership_response = supabase.table("partnerships").select("*").eq("user_one", invitation["inviter_id"]).eq("is_user_exists", False).execute()
+                partnership_response = supabase.table("partnerships").select("*").eq("user1_id", invitation["inviter_id"]).eq("is_user_exists", False).execute()
                 
                 if partnership_response.data:
-                    # Update the partnership with the new user's ID
+                    partnership = partnership_response.data[0]
                     supabase.table("partnerships").update({
-                        "user_two": user_id,
-                        "status": "trial",  # Automatically start trial when user registers via invitation
-                        "is_user_exists": True,
-                        "trial_end_date": None  # Reset trial end date, it will be calculated from now
-                    }).eq("id", partnership_response.data[0]["id"]).execute()
+                        "user2_id": user_id,
+                        "is_user_exists": True
+                    }).eq("id", partnership["id"]).execute()
                     
                     # Create partnership agreement if it was included in the invitation
                     if invitation["agreement"]:
                         agreement_data = {
-                            "partnership_id": partnership_response.data[0]["id"],
+                            "partnership_id": partnership["id"],
                             "communication_frequency": invitation["agreement"]["communication_frequency"],
                             "check_in_days": invitation["agreement"]["check_in_days"],
                             "expectations": invitation["agreement"]["expectations"],

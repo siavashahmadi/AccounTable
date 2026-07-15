@@ -40,7 +40,7 @@ async def get_user_partnerships(user_id: str):
     response = supabase.table('partnerships').select(
         '*',
         count='exact'
-    ).or_(f'user_one.eq.{user_id},user_two.eq.{user_id}').execute()
+    ).or_(f'user1_id.eq.{user_id},user2_id.eq.{user_id}').execute()
     return response.data
 
 async def get_user_goals(user_id: str):

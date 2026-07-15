@@ -182,8 +182,8 @@ const GoalDetails = () => {
   const getPartnerName = () => {
     if (!partnership) return '';
     
-    const isUserOne = partnership.user_one.id === user?.id;
-    const partner = isUserOne ? partnership.user_two : partnership.user_one;
+    const isUserOne = partnership.user1_id === user?.id;
+    const partner = isUserOne ? partnership.user2 : partnership.user1;
     return `${partner.first_name} ${partner.last_name}`;
   };
 

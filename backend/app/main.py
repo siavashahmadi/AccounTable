@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import RedirectResponse
 from dotenv import load_dotenv
 import os
 
@@ -30,12 +31,20 @@ app.add_middleware(RequestLoggingMiddleware)
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+    allow_origins=["http://localhost:5173"],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# Root endpoint redirects to API docs
+@app.get("/")
+async def root():
+    """
+    Root endpoint that redirects to the API documentation
+    """
+    return RedirectResponse(url="/docs")
 
 # Health check endpoint
 @app.get("/health")

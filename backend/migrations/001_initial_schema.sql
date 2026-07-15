@@ -16,13 +16,13 @@ CREATE TABLE IF NOT EXISTS users (
 -- Partnerships Table
 CREATE TABLE IF NOT EXISTS partnerships (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_one UUID REFERENCES users(id) NOT NULL,
-    user_two UUID REFERENCES users(id) NOT NULL,
+    user1_id UUID REFERENCES users(id) NOT NULL,
+    user2_id UUID REFERENCES users(id) NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('pending', 'trial', 'active', 'ended')),
     trial_end_date TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(user_one, user_two)
+    UNIQUE(user1_id, user2_id)
 );
 
 -- Goals Table
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 -- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_partnerships_users ON partnerships(user_one, user_two);
+CREATE INDEX IF NOT EXISTS idx_partnerships_users ON partnerships(user1_id, user2_id);
 CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id);
 CREATE INDEX IF NOT EXISTS idx_goals_partnership ON goals(partnership_id);
 CREATE INDEX IF NOT EXISTS idx_checkins_partnership ON check_ins(partnership_id);
@@ -96,28 +96,51 @@ CREATE POLICY "Users can update their own profile"
     USING (auth.uid() = id);
 
 -- Partnerships RLS policies
-CREATE POLICY "Users can view their partnerships"
-    ON partnerships FOR SELECT
-    USING (auth.uid() IN (user_one, user_two));
+CREATE POLICY "Users can view partnerships they are part of" ON partnerships FOR SELECT
+USING (auth.uid() IN (user1_id, user2_id));
 
-CREATE POLICY "Users can create partnerships"
-    ON partnerships FOR INSERT
-    WITH CHECK (auth.uid() = user_one);
+CREATE POLICY "Users can create partnerships where they are user1" ON partnerships FOR INSERT
+WITH CHECK (auth.uid() = user1_id);
+
+CREATE POLICY "Users can update their own partnerships" ON partnerships FOR UPDATE
+USING (auth.uid() IN (user1_id, user2_id));
 
 -- Goals RLS policies
-CREATE POLICY "Users can view goals in their partnerships"
-    ON goals FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM partnerships
-            WHERE id = goals.partnership_id
-            AND (user_one = auth.uid() OR user_two = auth.uid())
-        )
-    );
+CREATE POLICY "Users can view goals in their partnerships" ON goals FOR SELECT
+USING (
+    EXISTS (
+        SELECT 1 FROM partnerships p
+        WHERE p.id = partnership_id
+        AND (user1_id = auth.uid() OR user2_id = auth.uid())
+    )
+);
 
-CREATE POLICY "Users can create their own goals"
-    ON goals FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can create goals in their partnerships" ON goals FOR INSERT
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM partnerships p
+        WHERE p.id = partnership_id
+        AND (user1_id = auth.uid() OR user2_id = auth.uid())
+    )
+);
+
+CREATE POLICY "Users can update goals in their partnerships" ON goals FOR UPDATE
+USING (
+    EXISTS (
+        SELECT 1 FROM partnerships p
+        WHERE p.id = partnership_id
+        AND (user1_id = auth.uid() OR user2_id = auth.uid())
+    )
+);
+
+CREATE POLICY "Users can delete goals in their partnerships" ON goals FOR DELETE
+USING (
+    EXISTS (
+        SELECT 1 FROM partnerships p
+        WHERE p.id = partnership_id
+        AND (user1_id = auth.uid() OR user2_id = auth.uid())
+    )
+);
 
 -- Check-ins RLS policies
 CREATE POLICY "Users can view check-ins in their partnerships"
@@ -126,24 +149,19 @@ CREATE POLICY "Users can view check-ins in their partnerships"
         EXISTS (
             SELECT 1 FROM partnerships
             WHERE id = check_ins.partnership_id
-            AND (user_one = auth.uid() OR user_two = auth.uid())
+            AND (user1_id = auth.uid() OR user2_id = auth.uid())
         )
     );
 
 -- Progress Updates RLS policies
-CREATE POLICY "Users can view progress updates in their partnerships"
-    ON progress_updates FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM goals
-            WHERE id = progress_updates.goal_id
-            AND EXISTS (
-                SELECT 1 FROM partnerships
-                WHERE id = goals.partnership_id
-                AND (user_one = auth.uid() OR user_two = auth.uid())
-            )
-        )
-    );
+CREATE POLICY "Users can view progress updates in their partnerships" ON progress_updates FOR SELECT
+USING (
+    EXISTS (
+        SELECT 1 FROM partnerships p
+        JOIN goals g ON g.partnership_id = p.id
+        WHERE g.id = goal_id AND (p.user1_id = auth.uid() OR p.user2_id = auth.uid())
+    )
+);
 
 -- Messages RLS policies
 CREATE POLICY "Users can view messages in their partnerships"
@@ -152,7 +170,7 @@ CREATE POLICY "Users can view messages in their partnerships"
         EXISTS (
             SELECT 1 FROM partnerships
             WHERE id = messages.partnership_id
-            AND (user_one = auth.uid() OR user_two = auth.uid())
+            AND (user1_id = auth.uid() OR user2_id = auth.uid())
         )
     );
 
@@ -163,6 +181,6 @@ CREATE POLICY "Users can send messages in their partnerships"
         AND EXISTS (
             SELECT 1 FROM partnerships
             WHERE id = partnership_id
-            AND (user_one = auth.uid() OR user_two = auth.uid())
+            AND (user1_id = auth.uid() OR user2_id = auth.uid())
         )
     ); 

@@ -1,14 +1,17 @@
-import smtplib
+import os
+import sendgrid
+from sendgrid.helpers.mail import Mail, Email, To, Content
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from ..core.config import get_settings
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 async def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
-    Send an email using the configured SMTP server
+    Send an email using SendGrid
     
     Args:
         to_email: The recipient's email address
@@ -21,24 +24,27 @@ async def send_email(to_email: str, subject: str, html_content: str) -> bool:
     settings = get_settings()
     
     try:
-        # Create message
-        message = MIMEMultipart()
-        message["From"] = settings.SMTP_USERNAME
-        message["To"] = to_email
-        message["Subject"] = subject
+        # Initialize SendGrid client with API key
+        sg = sendgrid.SendGridAPIClient(api_key=settings.SMTP_PASSWORD)
         
-        # Attach HTML content
-        message.attach(MIMEText(html_content, "html"))
+        # Create the email
+        message = Mail(
+            from_email=settings.SENDER_EMAIL,
+            to_emails=to_email,
+            subject=subject,
+            html_content=html_content
+        )
         
-        # Connect to SMTP server and send
-        server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
-        server.starttls()
-        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-        server.send_message(message)
-        server.quit()
+        # Send email and get response
+        response = sg.client.mail.send.post(request_body=message.get())
         
-        logger.info(f"Successfully sent email to {to_email}")
-        return True
+        if response.status_code in [200, 201, 202]:
+            logger.info(f"Successfully sent email to {to_email}, status code: {response.status_code}")
+            return True
+        else:
+            logger.error(f"Failed to send email. Status code: {response.status_code}")
+            return False
+            
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {str(e)}")
         return False

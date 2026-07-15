@@ -59,40 +59,42 @@ export const db = {
   
   // Partnerships
   async getPartnerships() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No authenticated user');
+    
     const { data, error } = await supabase
       .from('partnerships')
       .select(`
         *,
-        user1:users!partnerships_user1_id_fkey (
-          id,
-          email,
-          first_name,
-          last_name,
-          avatar_url
-        ),
-        user2:users!partnerships_user2_id_fkey (
-          id,
-          email,
-          first_name,
-          last_name,
-          avatar_url
-        )
+        user1:users!partnerships_user1_id_fkey(*),
+        user2:users!partnerships_user2_id_fkey(*)
       `)
-      .order('created_at', { ascending: false });
+      .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`);
     
     if (error) throw error;
     return { data, error: null };
   },
   
   async createPartnership(partnerEmail, message, agreement, isNewUser = false) {
-    const { data, error } = await supabase.rpc('create_partnership', {
-      partner_email: partnerEmail,
-      invitation_message: message,
-      agreement_data: agreement,
-      is_new_user: isNewUser
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/partnerships`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+      },
+      body: JSON.stringify({
+        partner_email: partnerEmail,
+        message: message,
+        agreement: agreement,
+        is_new_user: isNewUser
+      })
     });
     
-    if (error) throw error;
+    const data = await response.json();
+    if (!response.ok) {
+      throw data;
+    }
+    
     return { data, error: null };
   },
   

@@ -53,7 +53,7 @@ async def get_user_partnerships(current_user: User = Depends(get_current_user)):
     supabase = get_supabase_client()
     
     response = supabase.table("partnerships").select("*").or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).execute()
     
     return response.data if response.data else []

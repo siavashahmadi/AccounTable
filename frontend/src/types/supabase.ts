@@ -47,24 +47,24 @@ export interface Database {
       partnerships: {
         Row: {
           id: string
-          user_one: string
-          user_two: string
+          user1_id: string
+          user2_id: string
           status: 'pending' | 'active' | 'paused' | 'completed'
           created_at: string
           updated_at: string | null
         }
         Insert: {
           id?: string
-          user_one: string
-          user_two: string
+          user1_id: string
+          user2_id: string
           status?: 'pending' | 'active' | 'paused' | 'completed'
           created_at?: string
           updated_at?: string | null
         }
         Update: {
           id?: string
-          user_one?: string
-          user_two?: string
+          user1_id?: string
+          user2_id?: string
           status?: 'pending' | 'active' | 'paused' | 'completed'
           created_at?: string
           updated_at?: string | null
@@ -197,4 +197,15 @@ export interface Database {
       [_ in never]: never
     }
   }
+}
+
+export interface Partnership {
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  status: 'pending' | 'trial' | 'active' | 'ended';
+  trial_end_date?: string;
+  created_at: string;
+  updated_at: string;
+  is_user_exists?: boolean;
 } 

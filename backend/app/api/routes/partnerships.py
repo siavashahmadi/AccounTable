@@ -68,38 +68,18 @@ async def create_partnership(
             # We could delete the invitation here, but it's still valid if the user gets the link
             pass
         
-        # Create a placeholder partnership to return to the frontend
-        # The actual partnership will be created when the invited user registers
-        placeholder_partner_id = str(uuid.uuid4())  # Generate a temporary ID
-        
-        new_partnership = {
-            "user_one": str(current_user.id),
-            "user_two": placeholder_partner_id,  # This will be replaced when user registers
+        # Instead of creating a partnership with a non-existent user, we'll just return the invitation data
+        # The partnership will be created when the invited user registers and accepts the invitation
+        return {
+            "id": str(uuid.uuid4()),  # Placeholder partnership ID
+            "user1_id": str(current_user.id),
+            "user2_id": str(uuid.uuid4()),  # Placeholder user ID
             "status": "pending",
-            "is_user_exists": False,  # This is important to distinguish between existing and new user invitations
-            "trial_end_date": (datetime.now() + timedelta(days=14)).isoformat()
+            "is_user_exists": False,
+            "trial_end_date": (datetime.now() + timedelta(days=14)).isoformat(),
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
         }
-        
-        partnership_response = supabase.table("partnerships").insert(new_partnership).execute()
-        
-        if not partnership_response.data:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create partnership placeholder"
-            )
-        
-        # Store the invitation message
-        if partnership_request.message:
-            message_data = {
-                "partnership_id": partnership_response.data[0]["id"],
-                "sender_id": str(current_user.id),
-                "content": partnership_request.message,
-                "is_invitation_message": True
-            }
-            
-            supabase.table("messages").insert(message_data).execute()
-        
-        return partnership_response.data[0]
     
     # For inviting an existing user
     else:
@@ -116,8 +96,8 @@ async def create_partnership(
         
         # Check if a partnership already exists between these users
         existing_partnership = supabase.table("partnerships").select("*").or_(
-            f"(user_one.eq.{current_user.id}.and.user_two.eq.{partner['id']}),"+
-            f"(user_one.eq.{partner['id']}.and.user_two.eq.{current_user.id})"
+            f"user1_id.eq.{current_user.id},user2_id.eq.{partner['id']}",
+            f"user1_id.eq.{partner['id']},user2_id.eq.{current_user.id}"
         ).execute()
         
         if existing_partnership.data:
@@ -128,8 +108,8 @@ async def create_partnership(
         
         # Create the partnership
         new_partnership = {
-            "user_one": str(current_user.id),
-            "user_two": partner["id"],
+            "user1_id": str(current_user.id),
+            "user2_id": partner["id"],
             "status": "pending",
             "is_user_exists": True,
             "trial_end_date": (datetime.now() + timedelta(days=14)).isoformat()
@@ -238,8 +218,13 @@ async def get_partnerships(
     """
     supabase = get_supabase_client()
     
-    query = supabase.table("partnerships").select("*").or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+    # Build the base query with user details
+    query = supabase.table("partnerships").select(
+        "*",
+        "user1:users!partnerships_user1_id_fkey(*)",
+        "user2:users!partnerships_user2_id_fkey(*)"
+    ).or_(
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     )
     
     if status:
@@ -260,8 +245,12 @@ async def get_partnership(
     """
     supabase = get_supabase_client()
     
-    response = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+    response = supabase.table("partnerships").select(
+        "*",
+        "user1:users!partnerships_user1_id_fkey(*)",
+        "user2:users!partnerships_user2_id_fkey(*)"
+    ).eq("id", partnership_id).or_(
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not response.data:
@@ -286,7 +275,7 @@ async def update_partnership(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -323,8 +312,8 @@ async def accept_partnership(
     """
     supabase = get_supabase_client()
     
-    # Check if partnership exists and user is the recipient (user_two)
-    partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).eq("user_two", str(current_user.id)).eq("status", "pending").single().execute()
+    # Check if partnership exists and user is the recipient (user2_id)
+    partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).eq("user2_id", str(current_user.id)).eq("status", "pending").single().execute()
     
     if not partnership.data:
         raise HTTPException(
@@ -357,8 +346,8 @@ async def decline_partnership(
     """
     supabase = get_supabase_client()
     
-    # Check if partnership exists and user is the recipient (user_two)
-    partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).eq("user_two", str(current_user.id)).eq("status", "pending").single().execute()
+    # Check if partnership exists and user is the recipient (user2_id)
+    partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).eq("user2_id", str(current_user.id)).eq("status", "pending").single().execute()
     
     if not partnership.data:
         raise HTTPException(
@@ -392,7 +381,7 @@ async def finalize_partnership(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).eq("status", "trial").or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -428,7 +417,7 @@ async def end_trial_partnership(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).eq("status", "trial").or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -464,7 +453,7 @@ async def create_or_update_agreement(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -515,7 +504,7 @@ async def get_partnership_agreement(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:

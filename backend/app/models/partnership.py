@@ -6,8 +6,8 @@ from .user import User
 
 
 class PartnershipBase(BaseModel):
-    user_one: UUID
-    user_two: UUID
+    user1_id: UUID
+    user2_id: UUID
     
 
 class PartnershipCreate(PartnershipBase):
@@ -39,8 +39,8 @@ class Partnership(PartnershipInDB):
 
 
 class PartnershipWithUsers(Partnership):
-    user_one_data: Optional[User] = None
-    user_two_data: Optional[User] = None
+    user1: Optional[User] = None
+    user2: Optional[User] = None
     
 
 class PartnershipAgreement(BaseModel):

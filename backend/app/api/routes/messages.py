@@ -21,7 +21,7 @@ async def create_message(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", message_data.partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -63,7 +63,7 @@ async def get_messages(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -107,7 +107,7 @@ async def get_unread_count(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -149,7 +149,7 @@ async def mark_messages_read(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:

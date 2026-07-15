@@ -21,7 +21,7 @@ async def create_goal(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", goal_data.partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -67,7 +67,7 @@ async def get_goals(
     if partnership_id:
         # Check if partnership exists and user is a member
         partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-            f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+            f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
         ).single().execute()
         
         if not partnership.data:
@@ -112,7 +112,7 @@ async def get_goal(
     
     # Check if user has access (either their goal or partner's goal)
     partnership = supabase.table("partnerships").select("*").eq("id", goal.data["partnership_id"]).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -200,7 +200,7 @@ async def add_progress_update(
     
     # Check if user has access (either their goal or partner's goal)
     partnership = supabase.table("partnerships").select("*").eq("id", goal.data["partnership_id"]).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:

@@ -21,7 +21,7 @@ async def create_checkin(
     
     # Check if partnership exists and user is a member
     partnership = supabase.table("partnerships").select("*").eq("id", checkin_data.partnership_id).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -59,7 +59,7 @@ async def get_checkins(
     if partnership_id:
         # Check if partnership exists and user is a member
         partnership = supabase.table("partnerships").select("*").eq("id", partnership_id).or_(
-            f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+            f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
         ).single().execute()
         
         if not partnership.data:
@@ -71,16 +71,19 @@ async def get_checkins(
         # Get check-ins for this partnership
         query = supabase.table("check_ins").select("*").eq("partnership_id", partnership_id)
     else:
-        # Get check-ins for all user's partnerships
+        # Get partnerships for the current user
         partnerships = supabase.table("partnerships").select("id").or_(
-            f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+            f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
         ).execute()
         
         if not partnerships.data:
             return []
         
-        partnership_ids = [p["id"] for p in partnerships.data]
-        query = supabase.table("check_ins").select("*").in_("partnership_id", partnership_ids)
+        # Get check-ins for these partnerships
+        response = supabase.table("check_ins").select(
+            "*",
+            "partnership:partnerships!inner(*)"
+        ).in_("partnership_id", [p["id"] for p in partnerships.data]).execute()
     
     # Filter by completion status if provided
     if completed is not None:
@@ -91,8 +94,6 @@ async def get_checkins(
     
     # Order by scheduled date
     query = query.order("scheduled_at", desc=False)
-    
-    response = query.execute()
     
     return response.data if response.data else []
 
@@ -118,7 +119,7 @@ async def get_checkin(
     
     # Check if user has access to this check-in
     partnership = supabase.table("partnerships").select("*").eq("id", checkin.data["partnership_id"]).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -152,7 +153,7 @@ async def update_checkin(
     
     # Check if user has access to this check-in
     partnership = supabase.table("partnerships").select("*").eq("id", checkin.data["partnership_id"]).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:
@@ -201,7 +202,7 @@ async def complete_checkin(
     
     # Check if user has access to this check-in
     partnership = supabase.table("partnerships").select("*").eq("id", checkin.data["partnership_id"]).or_(
-        f"user_one.eq.{current_user.id},user_two.eq.{current_user.id}"
+        f"user1_id.eq.{current_user.id},user2_id.eq.{current_user.id}"
     ).single().execute()
     
     if not partnership.data:

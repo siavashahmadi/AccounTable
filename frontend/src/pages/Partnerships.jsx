@@ -201,7 +201,7 @@ const Partnerships = () => {
       if (partnershipError) throw partnershipError;
       
       const alreadyPartners = partnerships?.some(p => 
-        ((p.user1 && p.user1.id === userData.id) || (p.user2 && p.user2.id === userData.id)) && 
+        ((p.user1_id && p.user1_id === userData.id) || (p.user2_id && p.user2_id === userData.id)) && 
         p.status !== 'ended'
       );
       
@@ -408,7 +408,7 @@ const Partnerships = () => {
   // Helper function to get partner's name
   const getPartnerInfo = (partnership) => {
     if (!partnership) return { name: '', email: '' };
-    const isUserOne = partnership.user1?.id === user?.id;
+    const isUserOne = partnership.user1_id === user?.id;
     const partner = isUserOne ? partnership.user2 : partnership.user1;
     return { 
       name: partner ? `${partner.first_name} ${partner.last_name}` : 'Unknown User',
@@ -880,7 +880,7 @@ const Partnerships = () => {
         {partnerships.map((partnership) => {
           const { name, email } = getPartnerInfo(partnership);
           const isPending = partnership.status === 'pending';
-          const isInviter = partnership.user_one === user?.id;
+          const isInviter = partnership.user1_id === user?.id;
           const isTrial = partnership.status === 'trial';
           const isActive = partnership.status === 'active';
           const isEnded = partnership.status === 'ended';
